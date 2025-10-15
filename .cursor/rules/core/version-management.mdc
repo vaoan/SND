@@ -1,0 +1,318 @@
+---
+title: "Version Management"
+description: "Guidelines for version control and semantic versioning in SND macros"
+version: "1.0.0"
+category: "core"
+tags: ["version", "semantic-versioning", "change-tracking", "snd"]
+dependencies: ["metadata-structure.mdc"]
+alwaysApply: true
+---
+
+# Version Management
+
+## Purpose
+Defines version control patterns and semantic versioning guidelines for SND macros to track changes and maintain proper version history.
+
+## Scope
+This rule covers version increment patterns, change tracking, semantic versioning, and automation for version updates.
+
+## Version Change Requirements
+
+### Core Principle
+**Every change to a script MUST result in a version increment.** No exceptions.
+
+### When to Increment Version
+```lua
+-- ✅ REQUIRED - Increment version for ANY change:
+-- - Bug fixes
+-- - New features
+-- - Configuration changes
+-- - Code refactoring
+-- - Documentation updates
+-- - Performance improvements
+-- - Dependency updates
+-- - UI changes
+-- - Logic modifications
+```
+
+## Semantic Versioning Pattern
+
+### Version Format
+```lua
+-- Use semantic versioning: MAJOR.MINOR.PATCH
+version: 1.0.0
+--        │ │ │
+--        │ │ └── PATCH: Bug fixes, minor corrections
+--        │ └──── MINOR: New features, enhancements
+--        └────── MAJOR: Breaking changes, major rewrites
+```
+
+### Version Increment Guidelines
+
+#### PATCH Version (1.0.0 → 1.0.1)
+```lua
+-- Increment PATCH for:
+-- - Bug fixes
+-- - Typo corrections
+-- - Minor code cleanup
+-- - Performance optimizations
+-- - Documentation updates
+-- - Configuration value adjustments
+-- - Error message improvements
+
+-- Example changes:
+-- - Fixed inventory check logic
+-- - Corrected spelling in echo messages
+-- - Optimized wait times
+-- - Updated comments
+```
+
+#### MINOR Version (1.0.0 → 1.1.0)
+```lua
+-- Increment MINOR for:
+-- - New features
+-- - New configuration options
+-- - Enhanced functionality
+-- - New plugin integrations
+-- - Additional error handling
+-- - New state machine states
+-- - UI improvements
+
+-- Example changes:
+-- - Added new crafting recipe support
+-- - Added configuration for wait times
+-- - Enhanced error recovery
+-- - Added new plugin integration
+```
+
+#### MAJOR Version (1.0.0 → 2.0.0)
+```lua
+-- Increment MAJOR for:
+-- - Breaking changes to configuration
+-- - Complete rewrites
+-- - Removed features
+-- - Changed plugin dependencies
+-- - Modified core behavior
+-- - Incompatible changes
+
+-- Example changes:
+-- - Changed configuration structure
+-- - Removed deprecated features
+-- - Changed plugin requirements
+-- - Modified core state machine logic
+```
+
+## Version Update Patterns
+
+### Manual Version Updates
+```lua
+-- Always update version in metadata header
+--[=====[
+[[SND Metadata]]
+author: 'Your Name'
+version: 1.0.1  -- ← UPDATE THIS
+description: Brief description of what the macro does
+plugin_dependencies:
+- PluginName1
+configs:
+  SettingName:
+    default: "defaultValue"
+    description: What this setting does
+[[End Metadata]]
+--]=====]
+```
+
+### Version Change Documentation
+```lua
+-- Document version changes in comments
+-- Version 1.0.1 - Fixed inventory space check logic
+-- Version 1.1.0 - Added support for new crafting recipes
+-- Version 2.0.0 - BREAKING: Changed configuration structure
+```
+
+## Automated Version Suggestions
+
+### Cursor Rule Integration
+```lua
+-- When making changes, Cursor should suggest:
+-- 1. Identify change type (bug fix, feature, breaking)
+-- 2. Suggest appropriate version increment
+-- 3. Update metadata header
+-- 4. Add change documentation
+```
+
+### Change Type Detection
+```lua
+-- Bug Fix Indicators:
+-- - "fix", "correct", "resolve", "repair"
+-- - Error handling improvements
+-- - Logic corrections
+-- → Increment PATCH
+
+-- Feature Indicators:
+-- - "add", "new", "enhance", "improve"
+-- - New functionality
+-- - Additional options
+-- → Increment MINOR
+
+-- Breaking Change Indicators:
+-- - "remove", "delete", "change structure"
+-- - Configuration changes
+-- - Dependency changes
+-- → Increment MAJOR
+```
+
+## Version History Tracking
+
+### Changelog Pattern
+```lua
+-- Add version history section to scripts
+--[=====[
+## Version History
+- v1.0.0 - Initial release
+- v1.0.1 - Fixed inventory space check
+- v1.1.0 - Added new crafting recipe support
+- v1.1.1 - Fixed recipe validation logic
+- v2.0.0 - BREAKING: Restructured configuration system
+--]=====]
+```
+
+### Change Documentation
+```lua
+-- Document each change clearly
+-- Version 1.0.1 (2024-01-15)
+-- - Fixed: Inventory space check was failing for edge cases
+-- - Changed: Wait time reduced from 2s to 1s for better performance
+-- - Added: Additional error logging for debugging
+
+-- Version 1.1.0 (2024-01-20)
+-- - Added: Support for new crafting recipes (X, Y, Z)
+-- - Added: Configuration option for custom wait times
+-- - Enhanced: Error recovery with automatic retry logic
+```
+
+## Version Validation
+
+### Pre-Release Checklist
+```lua
+-- Before releasing any script version:
+-- [ ] Version number incremented in metadata
+-- [ ] Change type identified (PATCH/MINOR/MAJOR)
+-- [ ] Version history updated
+-- [ ] Changes documented
+-- [ ] No breaking changes without MAJOR increment
+-- [ ] Configuration changes properly handled
+```
+
+### Version Consistency
+```lua
+-- Ensure version consistency across:
+-- - Metadata header
+-- - Version history comments
+-- - Any external documentation
+-- - Git commit messages (if using version control)
+```
+
+## Integration with Development Workflow
+
+### Change Detection
+```lua
+-- When editing SND scripts, automatically:
+-- 1. Detect if version needs updating
+-- 2. Suggest appropriate version increment
+-- 3. Update metadata header
+-- 4. Prompt for change description
+-- 5. Update version history
+```
+
+### Version Bump Automation
+```lua
+-- Suggested automation workflow:
+-- 1. Make code changes
+-- 2. Cursor detects change type
+-- 3. Suggests version increment
+-- 4. Updates metadata automatically
+-- 5. Prompts for change description
+-- 6. Updates version history
+```
+
+## Best Practices
+
+### 1. Always Increment Version
+```lua
+-- ✅ GOOD - Every change gets version bump
+-- Fixed typo in error message
+-- version: 1.0.0 → 1.0.1
+
+-- ❌ BAD - Changes without version increment
+-- Fixed typo in error message
+-- version: 1.0.0 (unchanged)
+```
+
+### 2. Use Semantic Versioning
+```lua
+-- ✅ GOOD - Proper semantic versioning
+-- Bug fix: 1.0.0 → 1.0.1
+-- New feature: 1.0.1 → 1.1.0
+-- Breaking change: 1.1.0 → 2.0.0
+
+-- ❌ BAD - Random version numbers
+-- Bug fix: 1.0.0 → 1.0.3
+-- New feature: 1.0.3 → 1.2.1
+```
+
+### 3. Document Changes
+```lua
+-- ✅ GOOD - Clear change documentation
+-- Version 1.0.1 - Fixed inventory space validation logic
+
+-- ❌ BAD - No change documentation
+-- Version 1.0.1 - Updated
+```
+
+### 4. Consistent Versioning
+```lua
+-- ✅ GOOD - Consistent across all files
+-- Script A: version 1.0.1
+-- Script B: version 1.0.1 (if same change type)
+
+-- ❌ BAD - Inconsistent versioning
+-- Script A: version 1.0.1
+-- Script B: version 1.0.0 (same changes)
+```
+
+## Error Prevention
+
+### Common Version Mistakes
+```lua
+-- ❌ AVOID - Forgetting to increment version
+-- Making changes without updating version number
+
+-- ❌ AVOID - Wrong increment type
+-- Adding new feature but only incrementing PATCH
+
+-- ❌ AVOID - Breaking changes without MAJOR increment
+-- Changing configuration structure but only incrementing MINOR
+
+-- ❌ AVOID - Inconsistent versioning
+-- Different scripts with different version numbers for same changes
+```
+
+### Version Validation Rules
+```lua
+-- Automated checks should verify:
+-- 1. Version number is present in metadata
+-- 2. Version follows semantic versioning format
+-- 3. Version is incremented from previous version
+-- 4. Change type matches version increment
+-- 5. Version history is updated
+```
+
+## Related Rules
+- [Metadata Structure](metadata-structure.mdc) - Metadata header requirements
+- [Error Handling](error-handling.mdc) - Error handling for version validation
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule extends:
+- [Metadata Structure](metadata-structure.mdc) - Builds upon metadata structure for version tracking

@@ -101,10 +101,12 @@ configs:
 
 ## Related Rules
 - [Configuration System](configuration-system.mdc) - Configuration access patterns
+- [Version Management](version-management.mdc) - Version control and semantic versioning
 - [Lua Automation Templates](../templates/lua-automation.mdc) - Automatic metadata generation
 - [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
 
 ## Rule Dependencies
 This rule serves as the foundation for metadata structure and is extended by:
 - [Configuration System](configuration-system.mdc) - Builds upon configuration structure defined here
+- [Version Management](version-management.mdc) - Uses metadata structure for version tracking
 - [Lua Automation Templates](../templates/lua-automation.mdc) - Uses metadata structure for template generation

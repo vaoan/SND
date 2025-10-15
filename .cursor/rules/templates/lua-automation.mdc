@@ -32,6 +32,9 @@ configs:
 [[End Metadata]]
 --]=====]
 
+-- Version History
+-- v1.0.0 - Initial version
+
 -- Your Lua code here
 ```
 
@@ -46,6 +49,7 @@ configs:
 2. Update the `description` field with a meaningful description
 3. Add any required `plugin_dependencies` (remove the field if none needed)
 4. Add any `configs` if user-configurable settings are needed (remove the field if none needed)
+5. **IMPORTANT**: Increment version number for any changes (see [Version Management](../core/version-management.mdc))
 
 ### Smart Defaults Based on Filename
 - If filename contains "crafting" → suggest crafting-related description
@@ -142,8 +146,10 @@ This rule works in conjunction with the main SND development rules to ensure:
 ## Related Rules
 - [Metadata Structure](../core/metadata-structure.mdc) - Metadata structure requirements
 - [Configuration System](../core/configuration-system.mdc) - Configuration patterns
+- [Version Management](../core/version-management.mdc) - Version control and semantic versioning
 - [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
 
 ## Rule Dependencies
 This rule extends:
 - [Metadata Structure](../core/metadata-structure.mdc) - Uses metadata structure for template generation
+- [Version Management](../core/version-management.mdc) - Uses version management for template versioning
