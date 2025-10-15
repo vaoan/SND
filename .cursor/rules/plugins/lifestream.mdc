@@ -1,10 +1,10 @@
 ---
 title: "Lifestream Integration"
 description: "Integration patterns for Lifestream plugin teleportation functionality in SND macros"
-version: "1.0.0"
+version: "1.1.0"
 category: "plugins"
 tags: ["lifestream", "teleportation", "plugin", "snd"]
-dependencies: ["../core/character-conditions.mdc", "../core/error-handling.mdc"]
+dependencies: ["../core/character-conditions.mdc", "../core/error-handling.mdc", "../utilities/status-checking.mdc"]
 alwaysApply: false
 ---
 
@@ -14,7 +14,405 @@ alwaysApply: false
 Integration patterns for Lifestream plugin teleportation functionality in SND macros.
 
 ## Scope
-This rule covers Lifestream teleportation patterns, location management, and teleportation error handling.
+This rule covers Lifestream teleportation patterns, location management, teleportation error handling, and complete API integration.
+
+## Complete Lifestream API Reference
+
+### Core Functions
+```lua
+-- Execute a command
+IPC.Lifestream.ExecuteCommand(string command) -> nil
+
+-- Check if Lifestream is busy
+IPC.Lifestream.IsBusy() -> boolean
+
+-- Abort current operation
+IPC.Lifestream.Abort() -> nil
+```
+
+### World Change Functions
+```lua
+-- Check if can visit same data center world
+IPC.Lifestream.CanVisitSameDC(string world) -> boolean
+
+-- Check if can visit cross data center world
+IPC.Lifestream.CanVisitCrossDC(string world) -> boolean
+
+-- Teleport and change world
+IPC.Lifestream.TPAndChangeWorld() -> nil
+
+-- Get world change aetheryte by territory type
+IPC.Lifestream.GetWorldChangeAetheryteByTerritoryType() -> number?
+
+-- Change world by name
+IPC.Lifestream.ChangeWorld(string world) -> boolean
+
+-- Change world by ID
+IPC.Lifestream.ChangeWorldById(number worldId) -> boolean
+```
+
+### Aethernet Teleportation Functions
+```lua
+-- Teleport to aethernet destination
+IPC.Lifestream.AethernetTeleport(string destination) -> boolean
+
+-- Teleport by place name ID
+IPC.Lifestream.AethernetTeleportByPlaceNameId(number placeNameId) -> boolean
+
+-- Teleport by aethernet sheet row ID
+IPC.Lifestream.AethernetTeleportById(number aethernetSheetRowId) -> boolean
+
+-- Teleport to housing aethernet by sheet row ID
+IPC.Lifestream.HousingAethernetTeleportById(number housingAethernetSheetRow) -> boolean
+
+-- Teleport to the Firmament
+IPC.Lifestream.AethernetTeleportToFirmament() -> boolean
+```
+
+### Active Aetheryte Information
+```lua
+-- Get active aetheryte ID
+IPC.Lifestream.GetActiveAetheryte() -> number
+
+-- Get active custom aetheryte ID
+IPC.Lifestream.GetActiveCustomAetheryte() -> number
+
+-- Get active residential aetheryte ID
+IPC.Lifestream.GetActiveResidentialAetheryte() -> number
+```
+
+### General Teleportation Functions
+```lua
+-- Teleport to specific aetheryte with sub-index
+IPC.Lifestream.Teleport(number aetheryteId, number subIndex) -> boolean
+
+-- Teleport to Free Company house
+IPC.Lifestream.TeleportToFC() -> boolean
+
+-- Teleport to registered home point
+IPC.Lifestream.TeleportToHome() -> boolean
+
+-- Teleport to apartment
+IPC.Lifestream.TeleportToApartment() -> boolean
+
+-- Get plot entrance coordinates
+IPC.Lifestream.GetPlotEntrance(number territory, number plot) -> Vector3?
+
+-- Enter or exit apartment
+IPC.Lifestream.EnterApartment(boolean enter) -> nil
+```
+
+### Shortcut and Instance Functions
+```lua
+-- Enqueue inn shortcut
+IPC.Lifestream.EnqueueInnShortcut(number? innIndex) -> nil
+
+-- Enqueue local inn shortcut
+IPC.Lifestream.EnqueueLocalInnShortcut(number? innIndex) -> nil
+
+-- Check if can change instance
+IPC.Lifestream.CanChangeInstance() -> boolean
+
+-- Get number of available instances
+IPC.Lifestream.GetNumberOfInstances() -> number
+
+-- Change to specified instance
+IPC.Lifestream.ChangeInstance(number number) -> nil
+
+-- Get current instance ID
+IPC.Lifestream.GetCurrentInstance() -> number
+```
+
+### Housing and Workshop Functions
+```lua
+-- Check if player has apartment
+IPC.Lifestream.HasApartment() -> boolean?
+
+-- Check if player has private house
+IPC.Lifestream.HasPrivateHouse() -> boolean?
+
+-- Check if Free Company has house
+IPC.Lifestream.HasFreeCompanyHouse() -> boolean?
+
+-- Check if can move to workshop
+IPC.Lifestream.CanMoveToWorkshop() -> boolean
+
+-- Move to workshop
+IPC.Lifestream.MoveToWorkshop() -> nil
+
+-- Get real territory type ID
+IPC.Lifestream.GetRealTerritoryType() -> number
+```
+
+## Enhanced Integration Patterns
+
+### World Change Functions
+```lua
+-- Check if can visit world in same data center
+function CanVisitSameDataCenter(worldName)
+    if not HasPlugin("Lifestream") then
+        return false
+    end
+    
+    return IPC.Lifestream.CanVisitSameDC(worldName)
+end
+
+-- Check if can visit world in different data center
+function CanVisitCrossDataCenter(worldName)
+    if not HasPlugin("Lifestream") then
+        return false
+    end
+    
+    return IPC.Lifestream.CanVisitCrossDC(worldName)
+end
+
+-- Change world with validation
+function ChangeWorldSafely(worldName, timeout)
+    timeout = timeout or 30
+    
+    if not HasPlugin("Lifestream") then
+        yield("/echo [Script] Lifestream not available")
+        return false
+    end
+    
+    -- Check if can visit world
+    if not CanVisitSameDataCenter(worldName) and not CanVisitCrossDataCenter(worldName) then
+        yield("/echo [Script] Cannot visit world: " .. worldName)
+        return false
+    end
+    
+    -- Execute world change
+    local success = IPC.Lifestream.ChangeWorld(worldName)
+    if not success then
+        yield("/echo [Script] Failed to change world")
+        return false
+    end
+    
+    -- Wait for completion
+    local startTime = os.clock()
+    while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    if IPC.Lifestream.IsBusy() then
+        yield("/echo [Script] World change timeout")
+        return false
+    end
+    
+    yield("/echo [Script] Successfully changed to world: " .. worldName)
+    return true
+end
+```
+
+### Aethernet Teleportation Functions
+```lua
+-- Teleport to aethernet destination with validation
+function TeleportToAethernet(destination, timeout)
+    timeout = timeout or 30
+    
+    if not HasPlugin("Lifestream") then
+        yield("/echo [Script] Lifestream not available")
+        return false
+    end
+    
+    if IPC.Lifestream.IsBusy() then
+        yield("/echo [Script] Lifestream is busy, waiting...")
+        local startTime = os.clock()
+        while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < 10 do
+            yield("/wait 1")
+        end
+    end
+    
+    local success = IPC.Lifestream.AethernetTeleport(destination)
+    if not success then
+        yield("/echo [Script] Failed to teleport to: " .. destination)
+        return false
+    end
+    
+    -- Wait for completion
+    local startTime = os.clock()
+    while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    if IPC.Lifestream.IsBusy() then
+        yield("/echo [Script] Aethernet teleport timeout")
+        return false
+    end
+    
+    yield("/echo [Script] Successfully teleported to: " .. destination)
+    return true
+end
+
+-- Teleport to housing aethernet
+function TeleportToHousingAethernet(housingAethernetId, timeout)
+    timeout = timeout or 30
+    
+    if not HasPlugin("Lifestream") then
+        yield("/echo [Script] Lifestream not available")
+        return false
+    end
+    
+    local success = IPC.Lifestream.HousingAethernetTeleportById(housingAethernetId)
+    if not success then
+        yield("/echo [Script] Failed to teleport to housing aethernet")
+        return false
+    end
+    
+    -- Wait for completion
+    local startTime = os.clock()
+    while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    return not IPC.Lifestream.IsBusy()
+end
+
+-- Teleport to the Firmament
+function TeleportToFirmament(timeout)
+    timeout = timeout or 30
+    
+    if not HasPlugin("Lifestream") then
+        yield("/echo [Script] Lifestream not available")
+        return false
+    end
+    
+    local success = IPC.Lifestream.AethernetTeleportToFirmament()
+    if not success then
+        yield("/echo [Script] Failed to teleport to Firmament")
+        return false
+    end
+    
+    -- Wait for completion
+    local startTime = os.clock()
+    while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    return not IPC.Lifestream.IsBusy()
+end
+```
+
+### Housing and Workshop Functions
+```lua
+-- Check housing status
+function GetHousingStatus()
+    if not HasPlugin("Lifestream") then
+        return nil
+    end
+    
+    local status = {
+        hasApartment = IPC.Lifestream.HasApartment(),
+        hasPrivateHouse = IPC.Lifestream.HasPrivateHouse(),
+        hasFreeCompanyHouse = IPC.Lifestream.HasFreeCompanyHouse()
+    }
+    
+    return status
+end
+
+-- Teleport to Free Company house
+function TeleportToFreeCompanyHouse(timeout)
+    timeout = timeout or 30
+    
+    if not HasPlugin("Lifestream") then
+        yield("/echo [Script] Lifestream not available")
+        return false
+    end
+    
+    if not IPC.Lifestream.HasFreeCompanyHouse() then
+        yield("/echo [Script] Free Company does not have a house")
+        return false
+    end
+    
+    local success = IPC.Lifestream.TeleportToFC()
+    if not success then
+        yield("/echo [Script] Failed to teleport to Free Company house")
+        return false
+    end
+    
+    -- Wait for completion
+    local startTime = os.clock()
+    while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    return not IPC.Lifestream.IsBusy()
+end
+
+-- Move to workshop
+function MoveToWorkshopSafely(timeout)
+    timeout = timeout or 30
+    
+    if not HasPlugin("Lifestream") then
+        yield("/echo [Script] Lifestream not available")
+        return false
+    end
+    
+    if not IPC.Lifestream.CanMoveToWorkshop() then
+        yield("/echo [Script] Cannot move to workshop")
+        return false
+    end
+    
+    IPC.Lifestream.MoveToWorkshop()
+    
+    -- Wait for completion
+    local startTime = os.clock()
+    while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    return not IPC.Lifestream.IsBusy()
+end
+```
+
+### Instance Management Functions
+```lua
+-- Get instance information
+function GetInstanceInfo()
+    if not HasPlugin("Lifestream") then
+        return nil
+    end
+    
+    local info = {
+        canChangeInstance = IPC.Lifestream.CanChangeInstance(),
+        numberOfInstances = IPC.Lifestream.GetNumberOfInstances(),
+        currentInstance = IPC.Lifestream.GetCurrentInstance()
+    }
+    
+    return info
+end
+
+-- Change instance safely
+function ChangeInstanceSafely(instanceNumber, timeout)
+    timeout = timeout or 30
+    
+    if not HasPlugin("Lifestream") then
+        yield("/echo [Script] Lifestream not available")
+        return false
+    end
+    
+    if not IPC.Lifestream.CanChangeInstance() then
+        yield("/echo [Script] Cannot change instance")
+        return false
+    end
+    
+    local maxInstances = IPC.Lifestream.GetNumberOfInstances()
+    if instanceNumber > maxInstances then
+        yield("/echo [Script] Invalid instance number: " .. instanceNumber)
+        return false
+    end
+    
+    IPC.Lifestream.ChangeInstance(instanceNumber)
+    
+    -- Wait for completion
+    local startTime = os.clock()
+    while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    return not IPC.Lifestream.IsBusy()
+end
+```
 
 ## Basic Lifestream Integration
 
@@ -363,5 +761,4 @@ end
 This rule extends:
 - [Character Conditions](../core/character-conditions.mdc) - Uses character conditions for teleportation state checking
 - [Error Handling](../core/error-handling.mdc) - Uses error handling patterns for teleportation operations
-- [State Machines](../core/state-machines.mdc) - Uses state machine patterns for teleportation integration
 - [Status Checking](../utilities/status-checking.mdc) - Uses plugin availability checking utilities
