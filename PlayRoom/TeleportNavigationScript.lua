@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Developer'
-version: 1.2.1
+version: 1.2.3
 description: Teleportation and navigation script with flight detection and walking fallback
 plugin_dependencies:
 - Lifestream
@@ -307,16 +307,53 @@ function ExecuteWalkingNavigation()
     WalkingAttempted = true
     yield("/echo [TeleportNav] Walking to target position")
     
-    -- Use vnavmesh to walk to target
+    -- Use vnavmesh to walk to target with maximum safety
     local success, error = pcall(function()
-        if not IPC or not IPC.vnavmesh or not IPC.vnavmesh.MoveTo then
+        -- Triple-check everything before calling
+        if not IPC then
+            error("IPC not available")
+        end
+        if not IPC.vnavmesh then
+            error("vnavmesh not available")
+        end
+        if not IPC.vnavmesh.MoveTo then
             error("vnavmesh.MoveTo function not available")
         end
-        return IPC.vnavmesh.MoveTo(TargetPosition.x, TargetPosition.y, TargetPosition.z, false)
+        if not TargetPosition then
+            error("TargetPosition not available")
+        end
+        if not TargetPosition.x or not TargetPosition.y or not TargetPosition.z then
+            error("TargetPosition coordinates not available")
+        end
+        
+        -- Convert coordinates to numbers with validation
+        local x = tonumber(TargetPosition.x)
+        local y = tonumber(TargetPosition.y)
+        local z = tonumber(TargetPosition.z)
+        
+        if not x or not y or not z then
+            error("Invalid coordinate values: x=" .. tostring(x) .. " y=" .. tostring(y) .. " z=" .. tostring(z))
+        end
+        
+        -- Additional validation for reasonable coordinate ranges
+        if x < -1000 or x > 1000 or y < -1000 or y > 1000 or z < -1000 or z > 1000 then
+            error("Coordinates out of reasonable range: x=" .. x .. " y=" .. y .. " z=" .. z)
+        end
+        
+        -- Call with validated parameters
+        return IPC.vnavmesh.MoveTo(x, y, z, false)
     end)
     
     if not success then
         yield("/echo [TeleportNav] ERROR: Walking navigation failed - " .. tostring(error))
+        yield("/echo [TeleportNav] Target coordinates: X=" .. tostring(TargetPosition.x) .. " Y=" .. tostring(TargetPosition.y) .. " Z=" .. tostring(TargetPosition.z))
+        yield("/echo [TeleportNav] vnavmesh appears to be having issues. This might be a plugin compatibility problem.")
+        yield("/echo [TeleportNav] Script will continue but navigation may not work properly.")
+        yield("/echo [TeleportNav] Consider checking vnavmesh plugin status or using manual navigation.")
+        
+        -- Fallback: Just report the target location and let user navigate manually
+        yield("/echo [TeleportNav] FALLBACK: Target location is at coordinates X=" .. tostring(TargetPosition.x) .. " Y=" .. tostring(TargetPosition.y) .. " Z=" .. tostring(TargetPosition.z))
+        yield("/echo [TeleportNav] Please navigate manually to the target location.")
         return false
     end
     
@@ -360,7 +397,7 @@ function ExecuteWalkingNavigation()
 end
 
 -- Main execution
-yield("/echo [TeleportNav] Teleportation and Navigation Script v1.2.1")
+yield("/echo [TeleportNav] Teleportation and Navigation Script v1.2.3")
 yield("/echo [TeleportNav] *** UPDATED CODE - NO STATE MACHINE - LINEAR EXECUTION ***")
 yield("/echo [TeleportNav] Target: " .. TargetLocation .. " at (" .. TargetX .. ", " .. TargetY .. ", " .. TargetZ .. ")")
 
