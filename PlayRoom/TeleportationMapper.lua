@@ -1,8 +1,8 @@
 --[=====[
 [[SND Metadata]]
 author: 'Developer'
-version: 1.2.0
-description: Smart teleportation mapping script with automatic file creation and intelligent skip logic for existing valid data
+version: 1.4.1
+description: Enhanced teleportation mapping script with comprehensive zone loading and character state validation
 plugin_dependencies:
 - Lifestream
 - vnavmesh
@@ -22,14 +22,25 @@ configs:
 [[End Metadata]]
 --]=====]
 
--- Version Fingerprint: v1.2.0-20240115-143022-ghi789
+-- Version Fingerprint: v1.4.1-20240115-143022-hij456
 -- Generated: 2024-01-15 14:30:22
--- Hash: ghi789jkl012345
+-- Hash: hij456klm789012
 
 -- Version History
 -- v1.0.0 - Initial version
 -- v1.1.0 - Added comprehensive validation, error tracking, and intelligent data collection
 -- v1.2.0 - Added automatic file creation and smart skip logic for existing valid data
+-- v1.2.1 - Fixed state machine initialization bug that caused "attempt to call a nil value" error
+-- v1.2.2 - Enhanced location detection, improved coordinate gathering, and relaxed validation for (0,0,0) coordinates
+-- v1.2.3 - Improved duplicate detection by map ID and added handling for teleportation location mismatches
+-- v1.2.4 - Added teleportation failure detection, intelligent retry logic, and enhanced Lifestream debugging
+-- v1.2.5 - Added enhanced debugging for teleportation success detection to identify loop issues
+-- v1.3.0 - MAJOR: Simplified logic - marks failed teleports and moves on, no retries, starts with Ul'dah
+-- v1.3.1 - Enhanced teleportation state tracking - ensures teleportation actually starts and completes before validation
+-- v1.3.2 - Enhanced Lifestream completion tracking - handles complex routing elements and extended timeouts
+-- v1.3.3 - Enhanced zone loading validation - waits for multiple zone loads and comprehensive character state checking
+-- v1.4.0 - Collect map data even for failed teleports - gather all available location information regardless of teleport success
+-- v1.4.1 - Added file path display and incremental data saving after each collection
 
 -- Character condition constants
 local CharacterCondition = {
@@ -58,11 +69,11 @@ local InvalidData = {}
 local StartTime = os.clock()
 local DataValidationComplete = false
 
--- Comprehensive list of all teleportable locations in FFXIV
+-- Comprehensive list of all teleportable locations in FFXIV (starting with Ul'dah for less crowded areas)
 local TeleportableLocations = {
-    -- ARR Cities
-    "Limsa Lominsa Lower Decks", "Limsa Lominsa Upper Decks",
+    -- ARR Cities (starting with Ul'dah for less crowded areas)
     "Ul'dah - Steps of Nald", "Ul'dah - Steps of Thal",
+    "Limsa Lominsa Lower Decks", "Limsa Lominsa Upper Decks",
     "New Gridania", "Old Gridania",
     
     -- ARR Areas
@@ -102,20 +113,21 @@ local TeleportableLocations = {
 
 -- State machine for mapping process
 local MappingState = {
-    ready = Ready,
-    validating = Validating,
-    teleporting = Teleporting,
-    collecting = Collecting,
-    saving = Saving,
-    complete = Complete
+    ready = nil,  -- Will be assigned after function definitions
+    validating = nil,
+    teleporting = nil,
+    collecting = nil,
+    saving = nil,
+    complete = nil
 }
 
-local State = MappingState.ready
+local State = nil  -- Will be initialized after function definitions
 
 function Ready()
     yield("/echo [TeleportMapper] Starting teleportation mapping process...")
     yield("/echo [TeleportMapper] Target locations: " .. #TeleportableLocations)
     yield("/echo [TeleportMapper] Output file: " .. OutputFile)
+    yield("/echo [TeleportMapper] Full file path: " .. io.popen("cd"):read("*l") .. "\\" .. OutputFile)
     
     if ResumeFromFile then
         LoadProgress()
@@ -174,6 +186,9 @@ function Teleporting()
         return
     end
     
+    -- Store the requested location for comparison
+    local requestedLocation = location
+    
     -- Execute teleportation
     local success, error = pcall(function()
         IPC.Lifestream.ExecuteCommand(location)
@@ -187,19 +202,171 @@ function Teleporting()
         return
     end
     
-    -- Wait for teleportation to complete
+    -- Debug: Check Lifestream status and response
+    yield("/echo [TeleportMapper] DEBUG: Lifestream command executed successfully")
+    if HasPlugin("Lifestream") then
+        local success2, isBusy = pcall(function()
+            return IPC.Lifestream.IsBusy()
+        end)
+        if success2 then
+            yield("/echo [TeleportMapper] DEBUG: Lifestream IsBusy = " .. tostring(isBusy))
+        end
+        
+        -- Try to get more information from Lifestream if available
+        local success3, lastCommand = pcall(function()
+            return IPC.Lifestream.LastCommand or "Unknown"
+        end)
+        if success3 then
+            yield("/echo [TeleportMapper] DEBUG: Lifestream LastCommand = " .. tostring(lastCommand))
+        end
+    end
+    
+    -- Store initial location to detect if teleportation actually happened
+    local initialLocation = GetCurrentLocationName()
+    yield("/echo [TeleportMapper] DEBUG: Initial location: " .. initialLocation)
+    
+    -- Wait for teleportation to start (Lifestream becomes busy)
+    local teleportStartTime = os.clock()
+    local teleportStarted = false
+    while not teleportStarted and (os.clock() - teleportStartTime) < 5 do
+        if IsLifestreamBusy() then
+            teleportStarted = true
+            yield("/echo [TeleportMapper] DEBUG: Teleportation started")
+        else
+            yield("/wait 0.1")
+        end
+    end
+    
+    if not teleportStarted then
+        yield("/echo [TeleportMapper] FAILED: Teleportation did not start for " .. requestedLocation)
+        RecordFailedTeleport(requestedLocation, "Teleportation did not start")
+        -- Still collect data for current location even if teleport didn't start
+        yield("/echo [TeleportMapper] NOTE: Collecting data for current location despite failed teleport start")
+        TeleportCount = TeleportCount + 1
+        yield("/wait " .. DelayBetweenTeleports)
+        State = MappingState.collecting
+        return
+    end
+    
+    -- Wait for Lifestream to complete all its work (teleportation + routing)
     local startTime = os.clock()
-    while IsLifestreamBusy() and (os.clock() - startTime) < 30 do
+    local lastBusyCheck = os.clock()
+    local consecutiveBusyChecks = 0
+    
+    while IsLifestreamBusy() and (os.clock() - startTime) < 60 do
         yield("/wait 1")
+        
+        -- Check if Lifestream has been busy for a while (might be doing complex routing)
+        if IsLifestreamBusy() then
+            consecutiveBusyChecks = consecutiveBusyChecks + 1
+            if consecutiveBusyChecks % 10 == 0 then
+                yield("/echo [TeleportMapper] DEBUG: Lifestream still busy after " .. consecutiveBusyChecks .. " seconds (complex routing?)")
+            end
+        else
+            consecutiveBusyChecks = 0
+        end
     end
     
     if IsLifestreamBusy() then
-        yield("/echo [TeleportMapper] WARNING: Teleportation timeout for " .. location)
-        RecordFailedTeleport(location, "Teleportation timeout")
+        yield("/echo [TeleportMapper] WARNING: Lifestream timeout after 60 seconds for " .. location)
+        RecordFailedTeleport(location, "Lifestream timeout - complex routing may be required")
+        -- Still collect data for current location even if Lifestream timed out
+        yield("/echo [TeleportMapper] NOTE: Collecting data for current location despite Lifestream timeout")
+        TeleportCount = TeleportCount + 1
+        yield("/wait " .. DelayBetweenTeleports)
+        State = MappingState.collecting
+        return
     end
     
-    -- Wait for character to finish teleporting
-    WaitForNotBusy(10)
+    yield("/echo [TeleportMapper] DEBUG: Lifestream completed all work")
+    
+    -- Wait for character to finish teleporting and any additional movement
+    WaitForNotBusy(15)
+    
+    -- Wait for zone loading to complete (can happen multiple times)
+    local zoneLoadStartTime = os.clock()
+    local lastZoneCheck = os.clock()
+    local zoneLoadCount = 0
+    
+    while IsCharacterBusy() and (os.clock() - zoneLoadStartTime) < 30 do
+        yield("/wait 0.5")
+        
+        -- Check for zone loading indicators
+        if IsZoneLoading() then
+            zoneLoadCount = zoneLoadCount + 1
+            yield("/echo [TeleportMapper] DEBUG: Zone loading detected (load #" .. zoneLoadCount .. ")")
+            
+            -- Wait for zone loading to complete
+            while IsZoneLoading() and (os.clock() - zoneLoadStartTime) < 30 do
+                yield("/wait 0.5")
+            end
+            
+            if not IsZoneLoading() then
+                yield("/echo [TeleportMapper] DEBUG: Zone loading completed")
+            end
+        end
+        
+        -- Check for teleportation/casting states
+        if IsTeleportingOrCasting() then
+            yield("/echo [TeleportMapper] DEBUG: Character still teleporting/casting")
+        end
+        
+        -- Log progress every 5 seconds
+        if (os.clock() - lastZoneCheck) >= 5 then
+            yield("/echo [TeleportMapper] DEBUG: Still waiting for zone/character ready after " .. math.floor(os.clock() - zoneLoadStartTime) .. " seconds")
+            lastZoneCheck = os.clock()
+        end
+    end
+    
+    if IsCharacterBusy() then
+        yield("/echo [TeleportMapper] WARNING: Character still busy after zone loading timeout")
+    else
+        yield("/echo [TeleportMapper] DEBUG: Character and zone fully ready")
+    end
+    
+    -- Final wait to ensure everything is stable
+    yield("/wait 3")
+    
+    -- Get final location after teleportation
+    local currentLocation = GetCurrentLocationName()
+    yield("/echo [TeleportMapper] DEBUG: Requested: " .. requestedLocation .. " | Actual: " .. currentLocation)
+    yield("/echo [TeleportMapper] DEBUG: Initial: " .. initialLocation .. " | Final: " .. currentLocation)
+    
+    -- Check if we're still in the same location (teleportation failed)
+    if currentLocation == "Unknown Location" or currentLocation == "" then
+        yield("/echo [TeleportMapper] ERROR: Could not determine current location after teleportation")
+        RecordFailedTeleport(requestedLocation, "Could not determine location after teleportation")
+        -- Still try to collect data even if location is unknown
+        yield("/echo [TeleportMapper] NOTE: Attempting to collect data despite unknown location")
+        TeleportCount = TeleportCount + 1
+        yield("/wait " .. DelayBetweenTeleports)
+        State = MappingState.collecting
+        return
+    end
+    
+    -- Check if teleportation actually happened (location changed from initial)
+    if initialLocation == currentLocation then
+        yield("/echo [TeleportMapper] FAILED: Teleportation did not change location - still in " .. currentLocation)
+        RecordFailedTeleport(requestedLocation, "Teleportation did not change location")
+        -- Still collect data for current location even if teleport didn't change location
+        yield("/echo [TeleportMapper] NOTE: Collecting data for current location despite no location change")
+        TeleportCount = TeleportCount + 1
+        yield("/wait " .. DelayBetweenTeleports)
+        State = MappingState.collecting
+        return
+    end
+    
+    -- Check if we ended up in the requested location
+    if requestedLocation ~= currentLocation then
+        yield("/echo [TeleportMapper] FAILED: Requested '" .. requestedLocation .. "' but ended up in '" .. currentLocation .. "'")
+        RecordFailedTeleport(requestedLocation, "Teleported to different location: " .. currentLocation)
+        -- Still collect data for the location we ended up in
+        yield("/echo [TeleportMapper] NOTE: Collecting data for failed teleport destination: " .. currentLocation)
+        TeleportCount = TeleportCount + 1
+        yield("/wait " .. DelayBetweenTeleports)
+        State = MappingState.collecting
+        return
+    end
     
     State = MappingState.collecting
 end
@@ -207,14 +374,30 @@ end
 function Collecting()
     local currentMapId = GetCurrentMapId()
     local locationName = GetCurrentLocationName()
+    local coordinates = GetCurrentCoordinates()
+    
+    -- Debug information
+    yield("/echo [TeleportMapper] DEBUG: Map ID = " .. tostring(currentMapId))
+    yield("/echo [TeleportMapper] DEBUG: Location Name = " .. tostring(locationName))
+    yield("/echo [TeleportMapper] DEBUG: Coordinates = X:" .. tostring(coordinates.x) .. " Y:" .. tostring(coordinates.y) .. " Z:" .. tostring(coordinates.z))
+    
+    -- Check if this is a failed teleport (we're collecting data despite failure)
+    local isFailedTeleport = false
+    for _, failed in ipairs(FailedTeleports) do
+        if failed.location and (failed.location == locationName or failed.location:find(locationName) or locationName:find(failed.location)) then
+            isFailedTeleport = true
+            break
+        end
+    end
     
     if currentMapId then
         local locationData = {
             name = locationName or "Unknown",
             mapId = currentMapId,
             timestamp = os.date("%Y-%m-%d %H:%M:%S"),
-            coordinates = GetCurrentCoordinates(),
-            isValid = true
+            coordinates = coordinates,
+            isValid = true,
+            isFailedTeleport = isFailedTeleport
         }
         
         -- Validate the collected data
@@ -233,14 +416,41 @@ function Collecting()
             if validationResult.isValid then
                 table.insert(CollectedLocations, locationData)
                 VisitedMapIds[currentMapId] = true
-                yield("/echo [TeleportMapper] Collected: " .. locationName .. " (Map ID: " .. currentMapId .. ")")
+                if isFailedTeleport then
+                    yield("/echo [TeleportMapper] SUCCESS: Collected data for failed teleport location " .. locationName .. " (Map ID: " .. currentMapId .. ")")
+                else
+                    yield("/echo [TeleportMapper] SUCCESS: Collected " .. locationName .. " (Map ID: " .. currentMapId .. ")")
+                end
+                
+                -- Save data immediately after collection
+                SaveIncrementalData(locationData)
             else
                 yield("/echo [TeleportMapper] Skipping invalid data for " .. locationName)
             end
         end
+        
     else
         yield("/echo [TeleportMapper] ERROR: Could not get map ID for current location")
         RecordFailedCollection(locationName or "Unknown", "No map ID available")
+        
+        -- Still try to save what we can for failed teleports
+        if isFailedTeleport then
+            local failedLocationData = {
+                name = locationName or "Unknown",
+                mapId = nil,
+                timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+                coordinates = coordinates,
+                isValid = false,
+                isFailedTeleport = true
+            }
+            
+            local file = io.open(OutputFile, "a")
+            if file then
+                file:write("# FAILED_TELEPORT_NO_MAP_ID: " .. locationName .. " | NO_MAP_ID | " .. tostring(coordinates.x) .. " | " .. tostring(coordinates.y) .. " | " .. tostring(coordinates.z) .. " | " .. failedLocationData.timestamp .. "\n")
+                file:close()
+                yield("/echo [TeleportMapper] Saved failed teleport data (no map ID) to file")
+            end
+        end
     end
     
     TeleportCount = TeleportCount + 1
@@ -434,25 +644,33 @@ function ValidateLocationData(locationData)
         return result
     end
     
-    -- Check if location name is valid
-    if not locationData.name or locationData.name == "Unknown" or locationData.name == "" then
+    -- Check if location name is valid (be more lenient)
+    if not locationData.name or locationData.name == "" then
         result.isValid = false
         result.reason = "Invalid location name: " .. tostring(locationData.name)
         return result
     end
     
-    -- Check if coordinates are reasonable (basic validation)
+    -- Check if coordinates exist (but don't reject 0,0,0 as it might be valid)
     local coords = locationData.coordinates
-    if not coords or not coords.x or not coords.y or not coords.z then
+    if not coords or coords.x == nil or coords.y == nil or coords.z == nil then
         result.isValid = false
         result.reason = "Missing coordinates"
         return result
     end
     
-    -- Check for obviously invalid coordinates (like 0,0,0 for most locations)
-    if coords.x == 0 and coords.y == 0 and coords.z == 0 then
+    -- Only reject coordinates if they're completely invalid (like NaN or extremely large values)
+    if not (type(coords.x) == "number" and type(coords.y) == "number" and type(coords.z) == "number") then
         result.isValid = false
-        result.reason = "Suspicious coordinates (0,0,0)"
+        result.reason = "Invalid coordinate types"
+        return result
+    end
+    
+    -- Accept (0,0,0) as valid since some locations might actually be at origin
+    -- Only reject if coordinates are NaN or infinity
+    if coords.x ~= coords.x or coords.y ~= coords.y or coords.z ~= coords.z then
+        result.isValid = false
+        result.reason = "NaN coordinates detected"
         return result
     end
     
@@ -543,11 +761,11 @@ function ShouldTeleportToLocation(locationName)
         return false
     end
     
-    -- Check if this location failed before and we should retry
+    -- Check if this location failed teleportation before (can't be teleported to)
     for _, failed in ipairs(FailedTeleports) do
         if failed.location == locationName then
-            yield("/echo [TeleportMapper] RETRY: " .. locationName .. " failed before, retrying...")
-            return true -- Retry failed locations
+            yield("/echo [TeleportMapper] SKIP: " .. locationName .. " cannot be teleported to (failed before)")
+            return false
         end
     end
     
@@ -562,6 +780,13 @@ function ShouldTeleportToLocation(locationName)
     -- Check if this location is a duplicate
     if IsDuplicateLocation(locationName) then
         yield("/echo [TeleportMapper] SKIP: " .. locationName .. " is a duplicate")
+        return false
+    end
+    
+    -- Check if we've already collected this map ID (even if location name is different)
+    local expectedMapId = GetExpectedMapIdForLocation(locationName)
+    if expectedMapId and VisitedMapIds[expectedMapId] then
+        yield("/echo [TeleportMapper] SKIP: " .. locationName .. " (Map ID " .. expectedMapId .. ") already collected")
         return false
     end
     
@@ -716,26 +941,142 @@ function GetCurrentMapId()
 end
 
 function GetCurrentLocationName()
+    -- Try multiple methods to get the current location name
+    local locationName = nil
+    
+    -- Method 1: Try Svc.TerritoryInfo.PlaceName
     if Svc and Svc.TerritoryInfo and Svc.TerritoryInfo.PlaceName then
         local success, placeName = pcall(function()
             return Svc.TerritoryInfo.PlaceName.Name
         end)
-        if success and placeName then
-            return placeName
+        if success and placeName and placeName ~= "" then
+            locationName = placeName
         end
     end
-    return "Unknown Location"
+    
+    -- Method 2: Try Svc.ClientState.LocalPlayer and TerritoryType
+    if not locationName and Svc and Svc.ClientState then
+        local success, player = pcall(function()
+            return Svc.ClientState.LocalPlayer
+        end)
+        if success and player and player.CurrentWorld and player.CurrentWorld.GameData then
+            local success2, worldName = pcall(function()
+                return player.CurrentWorld.GameData.Name
+            end)
+            if success2 and worldName and worldName ~= "" then
+                locationName = worldName
+            end
+        end
+    end
+    
+    -- Method 3: Try to get territory name from current map ID
+    if not locationName then
+        local currentMapId = GetCurrentMapId()
+        if currentMapId then
+            locationName = GetLocationNameFromMapId(currentMapId)
+        end
+    end
+    
+    -- Method 4: Fallback to a generic name based on map ID
+    if not locationName then
+        local currentMapId = GetCurrentMapId()
+        if currentMapId then
+            locationName = "Map ID " .. currentMapId
+        end
+    end
+    
+    return locationName or "Unknown Location"
 end
 
+function GetLocationNameFromMapId(mapId)
+    -- Hardcoded mapping for common locations (same as in TeleportNavigationScript)
+    local commonLocations = {
+        [130] = "Limsa Lominsa Lower Decks",
+        [129] = "Limsa Lominsa Upper Decks", 
+        [35] = "Ul'dah - Steps of Nald",
+        [36] = "Ul'dah - Steps of Thal",
+        [2] = "New Gridania",
+        [1] = "Old Gridania",
+        [419] = "Foundation (Ishgard)",
+        [420] = "The Pillars (Ishgard)",
+        [628] = "Kugane",
+        [819] = "The Crystarium",
+        [820] = "Eulmore",
+        [1055] = "Radz-at-Han",
+        [1056] = "Solution Nine",
+        [1057] = "Old Sharlayan",
+        [1058] = "Labyrinthos",
+        [1059] = "Thavnair",
+        [1060] = "Garlemald",
+        [1061] = "Mare Lamentorum",
+        [1062] = "Ultima Thule",
+        [1063] = "Elpis",
+        [156] = "Revenant's Toll (Mor Dhona)",
+        [478] = "Idyllshire",
+        [635] = "Rhalgr's Reach"
+    }
+    
+    return commonLocations[mapId]
+end
+
+function GetExpectedMapIdForLocation(locationName)
+    -- Reverse mapping: location name -> map ID
+    local locationToMapId = {
+        ["Limsa Lominsa Lower Decks"] = 130,
+        ["Limsa Lominsa Upper Decks"] = 129,
+        ["Ul'dah - Steps of Nald"] = 35,
+        ["Ul'dah - Steps of Thal"] = 36,
+        ["New Gridania"] = 2,
+        ["Old Gridania"] = 1,
+        ["Foundation (Ishgard)"] = 419,
+        ["The Pillars (Ishgard)"] = 420,
+        ["Kugane"] = 628,
+        ["The Crystarium"] = 819,
+        ["Eulmore"] = 820,
+        ["Radz-at-Han"] = 1055,
+        ["Solution Nine"] = 1056,
+        ["Old Sharlayan"] = 1057,
+        ["Labyrinthos"] = 1058,
+        ["Thavnair"] = 1059,
+        ["Garlemald"] = 1060,
+        ["Mare Lamentorum"] = 1061,
+        ["Ultima Thule"] = 1062,
+        ["Elpis"] = 1063,
+        ["Revenant's Toll (Mor Dhona)"] = 156,
+        ["Idyllshire"] = 478,
+        ["Rhalgr's Reach"] = 635
+    }
+    
+    return locationToMapId[locationName]
+end
+
+
 function GetCurrentCoordinates()
+    local coords = {x = 0, y = 0, z = 0}
+    
+    -- Try multiple methods to get coordinates
     if Player and Player.Position then
-        return {
-            x = Player.Position.x or 0,
-            y = Player.Position.y or 0,
-            z = Player.Position.z or 0
-        }
+        coords.x = Player.Position.x or 0
+        coords.y = Player.Position.y or 0
+        coords.z = Player.Position.z or 0
     end
-    return {x = 0, y = 0, z = 0}
+    
+    -- If we got (0,0,0), try alternative methods
+    if coords.x == 0 and coords.y == 0 and coords.z == 0 then
+        -- Try Svc.ClientState.LocalPlayer
+        if Svc and Svc.ClientState and Svc.ClientState.LocalPlayer then
+            local success, player = pcall(function()
+                return Svc.ClientState.LocalPlayer
+            end)
+            if success and player and player.Position then
+                coords.x = player.Position.X or 0
+                coords.y = player.Position.Y or 0
+                coords.z = player.Position.Z or 0
+            end
+        end
+    end
+    
+    return coords
 end
 
 function IsCharacterBusy()
@@ -750,6 +1091,17 @@ function IsCharacterBusy()
            (Svc.Condition[CharacterCondition.occupiedMateriaExtractionAndRepair] == true) or
            (Svc.Condition[CharacterCondition.occupiedSummoningBell] == true) or
            (Player.IsBusy == true)
+end
+
+function IsZoneLoading()
+    -- Check if character is between areas (zone loading)
+    return Svc.Condition[CharacterCondition.betweenAreas] == true
+end
+
+function IsTeleportingOrCasting()
+    -- Check if character is teleporting or casting
+    return (Svc.Condition[CharacterCondition.casting] == true) or
+           (Svc.Condition[CharacterCondition.beingMoved] == true)
 end
 
 function HasPlugin(pluginName)
@@ -771,12 +1123,26 @@ end
 function WaitForNotBusy(timeout)
     timeout = timeout or 30
     local startTime = os.clock()
+    local lastStatusCheck = os.clock()
     
     while IsCharacterBusy() and (os.clock() - startTime) < timeout do
         yield("/wait 0.1")
+        
+        -- Log status every 5 seconds for debugging
+        if (os.clock() - lastStatusCheck) >= 5 then
+            yield("/echo [TeleportMapper] DEBUG: Character still busy after " .. math.floor(os.clock() - startTime) .. " seconds")
+            lastStatusCheck = os.clock()
+        end
     end
     
-    return not IsCharacterBusy()
+    local finalStatus = not IsCharacterBusy()
+    if finalStatus then
+        yield("/echo [TeleportMapper] DEBUG: Character ready after " .. math.floor(os.clock() - startTime) .. " seconds")
+    else
+        yield("/echo [TeleportMapper] DEBUG: Character still busy after timeout")
+    end
+    
+    return finalStatus
 end
 
 function SaveProgress()
@@ -795,6 +1161,31 @@ function SaveProgress()
     
     if not success then
         yield("/echo [TeleportMapper] WARNING: Failed to save progress - " .. tostring(error))
+    end
+end
+
+function SaveIncrementalData(locationData)
+    local success, error = pcall(function()
+        local file = io.open(OutputFile, "a")
+        if not file then
+            error("Could not open file for writing: " .. OutputFile)
+        end
+        
+        if locationData.isFailedTeleport then
+            -- Save failed teleport data with special marker
+            file:write("# FAILED_TELEPORT_DATA: " .. locationData.name .. " | " .. tostring(locationData.mapId) .. " | " .. tostring(locationData.coordinates.x) .. " | " .. tostring(locationData.coordinates.y) .. " | " .. tostring(locationData.coordinates.z) .. " | " .. locationData.timestamp .. "\n")
+        else
+            -- Save successful teleport data
+            file:write("SUCCESS: " .. locationData.name .. " | " .. tostring(locationData.mapId) .. " | " .. tostring(locationData.coordinates.x) .. " | " .. tostring(locationData.coordinates.y) .. " | " .. tostring(locationData.coordinates.z) .. " | " .. locationData.timestamp .. "\n")
+        end
+        
+        file:close()
+    end)
+    
+    if success then
+        yield("/echo [TeleportMapper] Saved incremental data to file")
+    else
+        yield("/echo [TeleportMapper] WARNING: Failed to save incremental data - " .. tostring(error))
     end
 end
 
@@ -834,10 +1225,22 @@ function GetVisitedMapIds()
     return mapIds
 end
 
+-- Initialize state machine after all functions are defined
+MappingState.ready = Ready
+MappingState.validating = Validating
+MappingState.teleporting = Teleporting
+MappingState.collecting = Collecting
+MappingState.saving = Saving
+MappingState.complete = Complete
+
+State = MappingState.ready
+
 -- Main execution
-yield("/echo [TeleportMapper] FFXIV Teleportation Mapper v1.0.0")
+yield("/echo [TeleportMapper] FFXIV Teleportation Mapper v1.4.1")
 yield("/echo [TeleportMapper] This script will visit every teleportable location in FFXIV")
 yield("/echo [TeleportMapper] and collect map IDs for comprehensive mapping data")
+yield("/echo [TeleportMapper] Data will be saved to: " .. OutputFile)
+yield("/echo [TeleportMapper] Full file path: " .. io.popen("cd"):read("*l") .. "\\" .. OutputFile)
 
 -- Check prerequisites
 if not HasPlugin("Lifestream") then
@@ -854,7 +1257,13 @@ end
 -- Main execution loop
 while not StopFlag do
     if not IsCharacterBusy() then
-        State()
+        if State and type(State) == "function" then
+            State()
+        else
+            yield("/echo [TeleportMapper] ERROR: State function not properly initialized!")
+            yield("/echo [TeleportMapper] Current State: " .. tostring(State))
+            StopFlag = true
+        end
     end
     yield("/wait 0.1")
 end

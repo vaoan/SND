@@ -97,6 +97,7 @@ Organize rules into logical categories:
 │   ├── version-fingerprinting.mdc    # Version fingerprinting for cache detection
 │   ├── state-machines.mdc            # State machine architecture
 │   ├── character-conditions.mdc      # Character condition checking
+│   ├── player-api.mdc                # Native Player API integration
 │   └── error-handling.mdc            # Error handling patterns
 ├── templates/               # Template and automation rules
 │   └── lua-automation.mdc   # Lua file automation and templates
@@ -356,6 +357,7 @@ Track rule quality through:
 - [Version Fingerprinting](../core/version-fingerprinting.mdc) - Version fingerprinting for cache detection
 - [State Machines](../core/state-machines.mdc) - State machine architecture
 - [Character Conditions](../core/character-conditions.mdc) - Character condition checking
+- [Player API](../core/player-api.mdc) - Native Player API integration
 - [Error Handling](../core/error-handling.mdc) - Error handling patterns
 - [Lua Automation Templates](../templates/lua-automation.mdc) - Template automation
 
