@@ -41,17 +41,8 @@ local CharacterCondition = {
     occupiedSummoningBell = 50
 }
 
--- Script state machine
-local ScriptState = {
-    ready = Ready,
-    teleporting = Teleporting,
-    checkingFlight = CheckingFlight,
-    flying = Flying,
-    walking = Walking,
-    arrived = Arrived,
-    error = Error,
-    recovery = Recovery
-}
+-- Script state machine (will be defined after functions)
+local ScriptState = {}
 
 -- Configuration values
 local TargetMapId = tonumber(Config.Get("TargetMapId")) or 144
@@ -63,7 +54,7 @@ local WalkingTimeout = tonumber(Config.Get("WalkingTimeout")) or 60
 local MaxRetries = tonumber(Config.Get("MaxRetries")) or 3
 
 -- Script variables
-local State = ScriptState.ready
+local State = nil
 local StopFlag = false
 local RetryCount = 0
 local TargetPosition = {x = TargetX, y = TargetY, z = TargetZ}
@@ -370,6 +361,18 @@ function Recovery()
     -- Go back to ready state
     State = ScriptState.ready
 end
+
+-- Initialize state machine after all functions are defined
+ScriptState = {
+    ready = Ready,
+    teleporting = Teleporting,
+    checkingFlight = CheckingFlight,
+    flying = Flying,
+    walking = Walking,
+    arrived = Arrived,
+    error = Error,
+    recovery = Recovery
+}
 
 -- Main execution loop
 yield("/echo [TeleportNav] Teleportation and Navigation Script v1.0.0")
