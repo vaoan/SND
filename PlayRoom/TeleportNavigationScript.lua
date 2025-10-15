@@ -1,15 +1,15 @@
 --[=====[
 [[SND Metadata]]
 author: 'Developer'
-version: 1.0.1
+version: 1.2.1
 description: Teleportation and navigation script with flight detection and walking fallback
 plugin_dependencies:
 - Lifestream
 - vnavmesh
 configs:
-  TargetMapId:
-    default: 144
-    description: Map ID to teleport to
+  TargetLocation:
+    default: "Limsa Lominsa Lower Decks"
+    description: Location name to teleport to (use Lifestream location names)
   TargetX:
     default: 100.0
     description: X coordinate of target location
@@ -41,11 +41,8 @@ local CharacterCondition = {
     occupiedSummoningBell = 50
 }
 
--- Script state machine (will be defined after functions)
-local ScriptState = {}
-
 -- Configuration values
-local TargetMapId = tonumber(Config.Get("TargetMapId")) or 144
+local TargetLocation = Config.Get("TargetLocation") or "Limsa Lominsa Lower Decks"
 local TargetX = tonumber(Config.Get("TargetX")) or 100.0
 local TargetY = tonumber(Config.Get("TargetY")) or 0.0
 local TargetZ = tonumber(Config.Get("TargetZ")) or 100.0
@@ -54,27 +51,31 @@ local WalkingTimeout = tonumber(Config.Get("WalkingTimeout")) or 60
 local MaxRetries = tonumber(Config.Get("MaxRetries")) or 3
 
 -- Script variables
-local State = nil
 local StopFlag = false
 local RetryCount = 0
 local TargetPosition = {x = TargetX, y = TargetY, z = TargetZ}
 local CurrentMapId = nil
 local FlightAttempted = false
 local WalkingAttempted = false
+local TeleportAttempted = false
 
 -- Utility functions
 function IsCharacterBusy()
-    return Svc.Condition[CharacterCondition.casting] or
-           Svc.Condition[CharacterCondition.betweenAreas] or
-           Svc.Condition[CharacterCondition.beingMoved] or
-           Svc.Condition[CharacterCondition.occupiedInQuestEvent] or
-           Svc.Condition[CharacterCondition.occupiedMateriaExtractionAndRepair] or
-           Svc.Condition[CharacterCondition.occupiedSummoningBell] or
-           Player.IsBusy
+    if not Player or not Player.Available then
+        return false
+    end
+    
+    return (Svc.Condition[CharacterCondition.casting] == true) or
+           (Svc.Condition[CharacterCondition.betweenAreas] == true) or
+           (Svc.Condition[CharacterCondition.beingMoved] == true) or
+           (Svc.Condition[CharacterCondition.occupiedInQuestEvent] == true) or
+           (Svc.Condition[CharacterCondition.occupiedMateriaExtractionAndRepair] == true) or
+           (Svc.Condition[CharacterCondition.occupiedSummoningBell] == true) or
+           (Player.IsBusy == true)
 end
 
 function HasPlugin(pluginName)
-    return IPC[pluginName] ~= nil
+    return IPC and IPC[pluginName] ~= nil
 end
 
 function WaitForNotBusy(timeout)
@@ -101,14 +102,18 @@ function WaitWithTimeout(condition, timeout, interval)
 end
 
 function GetDistanceToTarget()
-    if not Player.Available then
+    if not Player or not Player.Available or not Player.Position then
         return math.huge
     end
     
     local playerPos = Player.Position
-    local dx = playerPos.x - TargetPosition.x
-    local dy = playerPos.y - TargetPosition.y
-    local dz = playerPos.z - TargetPosition.z
+    local px = playerPos.x or 0
+    local py = playerPos.y or 0
+    local pz = playerPos.z or 0
+    
+    local dx = px - TargetPosition.x
+    local dy = py - TargetPosition.y
+    local dz = pz - TargetPosition.z
     
     return math.sqrt(dx * dx + dy * dy + dz * dz)
 end
@@ -119,14 +124,17 @@ function IsAtTarget(distanceThreshold)
 end
 
 function CanFly()
-    -- Check if player can fly in current area
-    -- This is a simplified check - in practice you might need more sophisticated detection
-    return Player.Level >= 50 and not Svc.Condition[CharacterCondition.occupiedInQuestEvent]
+    if not Player or not Player.Available then
+        return false
+    end
+    
+    local playerLevel = Player.Level or 0
+    return playerLevel >= 50 and not (Svc.Condition[CharacterCondition.occupiedInQuestEvent] == true)
 end
 
 function ValidateConfiguration()
-    if not TargetMapId or TargetMapId <= 0 then
-        yield("/echo [TeleportNav] ERROR: Invalid TargetMapId configuration")
+    if not TargetLocation or TargetLocation == "" then
+        yield("/echo [TeleportNav] ERROR: Invalid TargetLocation configuration")
         return false
     end
     
@@ -148,258 +156,289 @@ function ValidateConfiguration()
     return true
 end
 
--- State functions
-function Ready()
-    yield("/echo [TeleportNav] Starting teleportation and navigation script")
-    
-    -- Validate configuration
-    if not ValidateConfiguration() then
-        State = ScriptState.error
-        return
-    end
-    
-    -- Check plugin availability
+function IsLifestreamBusy()
     if not HasPlugin("Lifestream") then
-        yield("/echo [TeleportNav] ERROR: Lifestream plugin not found!")
-        yield("/echo [TeleportNav] Please install and enable the Lifestream plugin")
-        State = ScriptState.error
-        return
+        return false
     end
     
-    if not HasPlugin("vnavmesh") then
-        yield("/echo [TeleportNav] ERROR: vnavmesh plugin not found!")
-        yield("/echo [TeleportNav] Please install and enable the vnavmesh plugin")
-        State = ScriptState.error
-        return
-    end
+    local success, result = pcall(function()
+        return IPC.Lifestream.IsBusy()
+    end)
     
-    -- Check player availability
-    if not Player.Available then
-        yield("/echo [TeleportNav] ERROR: Player not available!")
-        State = ScriptState.error
-        return
-    end
-    
-    CurrentMapId = Player.MapId
-    yield("/echo [TeleportNav] Current map: " .. CurrentMapId .. ", Target map: " .. TargetMapId)
-    yield("/echo [TeleportNav] Target position: X=" .. TargetX .. ", Y=" .. TargetY .. ", Z=" .. TargetZ)
-    
-    State = ScriptState.teleporting
+    return success and result == true
 end
 
-function Teleporting()
-    yield("/echo [TeleportNav] Teleporting to map " .. TargetMapId)
+-- Main script logic
+function ExecuteTeleportation()
+    if TeleportAttempted then
+        return true
+    end
+    
+    if not HasPlugin("Lifestream") then
+        yield("/echo [TeleportNav] WARNING: Lifestream not available, skipping teleportation")
+        return true
+    end
+    
+    yield("/echo [TeleportNav] Teleporting to location: " .. TargetLocation)
+    
+    -- Check if Lifestream is busy
+    if IsLifestreamBusy() then
+        yield("/echo [TeleportNav] Lifestream is busy, waiting...")
+        local startTime = os.clock()
+        while IsLifestreamBusy() and (os.clock() - startTime) < 10 do
+            yield("/wait 1")
+        end
+    end
     
     -- Use Lifestream to teleport
     local success, error = pcall(function()
-        IPC.Lifestream.TeleportToMap(TargetMapId)
+        IPC.Lifestream.ExecuteCommand(TargetLocation)
     end)
     
     if not success then
         yield("/echo [TeleportNav] ERROR: Teleportation failed - " .. tostring(error))
-        State = ScriptState.error
-        return
+        return false
     end
+    
+    TeleportAttempted = true
     
     -- Wait for teleportation to complete
-    if not WaitWithTimeout(function()
-        return not Svc.Condition[CharacterCondition.betweenAreas] and Player.MapId == TargetMapId
-    end, 30) then
+    local startTime = os.clock()
+    while IsLifestreamBusy() and (os.clock() - startTime) < 30 do
+        yield("/wait 1")
+    end
+    
+    if IsLifestreamBusy() then
         yield("/echo [TeleportNav] ERROR: Teleportation timeout")
-        State = ScriptState.error
-        return
+        return false
     end
     
-    yield("/echo [TeleportNav] Successfully teleported to map " .. TargetMapId)
-    State = ScriptState.checkingFlight
+    -- Wait for character to finish teleporting
+    if not WaitWithTimeout(function()
+        return not (Svc.Condition[CharacterCondition.betweenAreas] == true)
+    end, 10) then
+        yield("/echo [TeleportNav] WARNING: Character still teleporting after Lifestream completed")
+    end
+    
+    yield("/echo [TeleportNav] Successfully teleported to: " .. TargetLocation)
+    return true
 end
 
-function CheckingFlight()
-    yield("/echo [TeleportNav] Checking flight capabilities")
-    
-    -- Wait for player to be ready
-    if not WaitForNotBusy(10) then
-        yield("/echo [TeleportNav] ERROR: Player still busy after teleportation")
-        State = ScriptState.error
-        return
+function ExecuteFlightNavigation()
+    if FlightAttempted then
+        return false
     end
     
-    -- Check if we can fly
-    if CanFly() then
-        yield("/echo [TeleportNav] Flight is available, attempting to fly to target")
-        State = ScriptState.flying
-    else
-        yield("/echo [TeleportNav] Flight not available, will walk to target")
-        State = ScriptState.walking
+    if not CanFly() then
+        yield("/echo [TeleportNav] Cannot fly, will try walking")
+        return false
     end
-end
-
-function Flying()
-    if not FlightAttempted then
-        FlightAttempted = true
-        yield("/echo [TeleportNav] Attempting to fly to target position")
-        
-        -- Use vnavmesh to fly to target
-        local success, error = pcall(function()
-            IPC.vnavmesh.MoveTo(TargetPosition.x, TargetPosition.y, TargetPosition.z, true) -- true for flying
-        end)
-        
-        if not success then
-            yield("/echo [TeleportNav] WARNING: Flight navigation failed - " .. tostring(error))
-            yield("/echo [TeleportNav] Falling back to walking")
-            State = ScriptState.walking
-            return
+    
+    if not HasPlugin("vnavmesh") then
+        yield("/echo [TeleportNav] ERROR: vnavmesh plugin not available for flight")
+        return false
+    end
+    
+    FlightAttempted = true
+    yield("/echo [TeleportNav] Attempting to fly to target position")
+    
+    -- Use vnavmesh to fly to target
+    local success, error = pcall(function()
+        if not IPC or not IPC.vnavmesh or not IPC.vnavmesh.MoveTo then
+            error("vnavmesh.MoveTo function not available")
         end
+        return IPC.vnavmesh.MoveTo(TargetPosition.x, TargetPosition.y, TargetPosition.z, true)
+    end)
+    
+    if not success then
+        yield("/echo [TeleportNav] WARNING: Flight navigation failed - " .. tostring(error))
+        return false
     end
     
     -- Monitor flight progress
-    if IPC.vnavmesh.IsRunning() then
+    local startTime = os.clock()
+    while (os.clock() - startTime) < FlightTimeout do
+        if not HasPlugin("vnavmesh") then
+            yield("/echo [TeleportNav] ERROR: vnavmesh became unavailable during flight")
+            return false
+        end
+        
+        local isRunning = false
+        local success, result = pcall(function()
+            if not IPC or not IPC.vnavmesh or not IPC.vnavmesh.IsRunning then
+                return false
+            end
+            return IPC.vnavmesh.IsRunning()
+        end)
+        
+        if success then
+            isRunning = result == true
+        end
+        
+        if not isRunning or IsAtTarget(5.0) then
+            break
+        end
+        
         local distance = GetDistanceToTarget()
         yield("/echo [TeleportNav] Flying to target... Distance: " .. string.format("%.2f", distance))
-        
-        -- Check for timeout
-        if not WaitWithTimeout(function()
-            return not IPC.vnavmesh.IsRunning() or IsAtTarget(5.0)
-        end, FlightTimeout) then
-            yield("/echo [TeleportNav] WARNING: Flight navigation timeout, stopping and trying walking")
-            IPC.vnavmesh.Stop()
-            State = ScriptState.walking
-            return
-        end
+        yield("/wait 1")
     end
     
     -- Check if we arrived
     if IsAtTarget(5.0) then
         yield("/echo [TeleportNav] Successfully arrived at target via flight!")
-        State = ScriptState.arrived
+        return true
     else
         yield("/echo [TeleportNav] Flight did not reach target, trying walking")
-        State = ScriptState.walking
+        return false
     end
 end
 
-function Walking()
-    if not WalkingAttempted then
-        WalkingAttempted = true
-        yield("/echo [TeleportNav] Walking to target position")
-        
-        -- Use vnavmesh to walk to target
-        local success, error = pcall(function()
-            IPC.vnavmesh.MoveTo(TargetPosition.x, TargetPosition.y, TargetPosition.z, false) -- false for walking
-        end)
-        
-        if not success then
-            yield("/echo [TeleportNav] ERROR: Walking navigation failed - " .. tostring(error))
-            State = ScriptState.error
-            return
+function ExecuteWalkingNavigation()
+    if WalkingAttempted then
+        return false
+    end
+    
+    if not HasPlugin("vnavmesh") then
+        yield("/echo [TeleportNav] ERROR: vnavmesh plugin not available for walking")
+        return false
+    end
+    
+    WalkingAttempted = true
+    yield("/echo [TeleportNav] Walking to target position")
+    
+    -- Use vnavmesh to walk to target
+    local success, error = pcall(function()
+        if not IPC or not IPC.vnavmesh or not IPC.vnavmesh.MoveTo then
+            error("vnavmesh.MoveTo function not available")
         end
+        return IPC.vnavmesh.MoveTo(TargetPosition.x, TargetPosition.y, TargetPosition.z, false)
+    end)
+    
+    if not success then
+        yield("/echo [TeleportNav] ERROR: Walking navigation failed - " .. tostring(error))
+        return false
     end
     
     -- Monitor walking progress
-    if IPC.vnavmesh.IsRunning() then
+    local startTime = os.clock()
+    while (os.clock() - startTime) < WalkingTimeout do
+        if not HasPlugin("vnavmesh") then
+            yield("/echo [TeleportNav] ERROR: vnavmesh became unavailable during walking")
+            return false
+        end
+        
+        local isRunning = false
+        local success, result = pcall(function()
+            if not IPC or not IPC.vnavmesh or not IPC.vnavmesh.IsRunning then
+                return false
+            end
+            return IPC.vnavmesh.IsRunning()
+        end)
+        
+        if success then
+            isRunning = result == true
+        end
+        
+        if not isRunning or IsAtTarget(3.0) then
+            break
+        end
+        
         local distance = GetDistanceToTarget()
         yield("/echo [TeleportNav] Walking to target... Distance: " .. string.format("%.2f", distance))
-        
-        -- Check for timeout
-        if not WaitWithTimeout(function()
-            return not IPC.vnavmesh.IsRunning() or IsAtTarget(3.0)
-        end, WalkingTimeout) then
-            yield("/echo [TeleportNav] ERROR: Walking navigation timeout")
-            IPC.vnavmesh.Stop()
-            State = ScriptState.error
-            return
-        end
+        yield("/wait 1")
     end
     
     -- Check if we arrived
     if IsAtTarget(3.0) then
         yield("/echo [TeleportNav] Successfully arrived at target via walking!")
-        State = ScriptState.arrived
+        return true
     else
         yield("/echo [TeleportNav] ERROR: Failed to reach target via walking")
-        State = ScriptState.error
+        return false
     end
 end
 
-function Arrived()
-    local distance = GetDistanceToTarget()
-    yield("/echo [TeleportNav] SUCCESS: Arrived at target location!")
-    yield("/echo [TeleportNav] Final distance: " .. string.format("%.2f", distance))
-    yield("/echo [TeleportNav] Script completed successfully")
-    StopFlag = true
-end
+-- Main execution
+yield("/echo [TeleportNav] Teleportation and Navigation Script v1.2.1")
+yield("/echo [TeleportNav] *** UPDATED CODE - NO STATE MACHINE - LINEAR EXECUTION ***")
+yield("/echo [TeleportNav] Target: " .. TargetLocation .. " at (" .. TargetX .. ", " .. TargetY .. ", " .. TargetZ .. ")")
 
-function Error()
-    yield("/echo [TeleportNav] ERROR: Script encountered an error")
-    
-    -- Stop any running navigation
-    if IPC.vnavmesh.IsRunning() then
-        IPC.vnavmesh.Stop()
-    end
-    
-    -- Check if we should retry
-    if RetryCount < MaxRetries then
-        RetryCount = RetryCount + 1
-        yield("/echo [TeleportNav] Retrying... Attempt " .. RetryCount .. "/" .. MaxRetries)
-        State = ScriptState.recovery
-    else
-        yield("/echo [TeleportNav] ERROR: Maximum retry attempts reached, stopping script")
-        StopFlag = true
-    end
-end
-
-function Recovery()
-    yield("/echo [TeleportNav] Attempting recovery...")
-    
-    -- Reset flags
-    FlightAttempted = false
-    WalkingAttempted = false
-    
-    -- Wait a moment before retrying
-    yield("/wait 2")
-    
-    -- Go back to ready state
-    State = ScriptState.ready
-end
-
--- Initialize state machine after all functions are defined
-ScriptState = {
-    ready = Ready,
-    teleporting = Teleporting,
-    checkingFlight = CheckingFlight,
-    flying = Flying,
-    walking = Walking,
-    arrived = Arrived,
-    error = Error,
-    recovery = Recovery
-}
-
--- Main execution loop
-yield("/echo [TeleportNav] Teleportation and Navigation Script v1.0.1")
-yield("/echo [TeleportNav] Target: Map " .. TargetMapId .. " at (" .. TargetX .. ", " .. TargetY .. ", " .. TargetZ .. ")")
-
--- Initialize state
-State = ScriptState.ready
-if not State then
-    yield("/echo [TeleportNav] ERROR: Failed to initialize state machine")
+-- Validate configuration
+if not ValidateConfiguration() then
+    yield("/echo [TeleportNav] Configuration validation failed, stopping script")
     return
 end
-yield("/echo [TeleportNav] State machine initialized successfully")
-while not StopFlag do
-    local isLifestreamBusy = false
-    if HasPlugin("Lifestream") then
-        isLifestreamBusy = IPC.Lifestream.IsBusy()
-    end
-    
-    if not IsCharacterBusy() and not isLifestreamBusy then
-        if State and type(State) == "function" then
-            State()
-        else
-            yield("/echo [TeleportNav] ERROR: Invalid state, stopping script")
-            StopFlag = true
-        end
-    end
-    yield("/wait 0.1")
+
+-- Check plugin availability
+if not HasPlugin("vnavmesh") then
+    yield("/echo [TeleportNav] ERROR: vnavmesh plugin not found!")
+    yield("/echo [TeleportNav] Please install and enable the vnavmesh plugin")
+    return
 end
 
+-- Check player availability
+if not Player or not Player.Available then
+    yield("/echo [TeleportNav] ERROR: Player not available!")
+    return
+end
+
+CurrentMapId = Player.MapId or "Unknown"
+yield("/echo [TeleportNav] Current map: " .. tostring(CurrentMapId) .. ", Target location: " .. TargetLocation)
+yield("/echo [TeleportNav] Target position: X=" .. TargetX .. ", Y=" .. TargetY .. ", Z=" .. TargetZ)
+
+-- Main execution loop
+while not StopFlag do
+    -- Check if we need to teleport
+    if not IsAtTarget(50.0) and not TeleportAttempted then
+        if not ExecuteTeleportation() then
+            yield("/echo [TeleportNav] Teleportation failed, stopping script")
+            break
+        end
+    elseif IsAtTarget(50.0) then
+        yield("/echo [TeleportNav] Already near target location, skipping teleportation")
+    end
+    
+    -- Wait for character to be ready
+    if not WaitForNotBusy(10) then
+        yield("/echo [TeleportNav] ERROR: Player still busy after teleportation")
+        break
+    end
+    
+    -- Try flight first
+    if ExecuteFlightNavigation() then
+        break
+    end
+    
+    -- Try walking if flight failed
+    if ExecuteWalkingNavigation() then
+        break
+    end
+    
+    -- If both failed, check if we should retry
+    if RetryCount < MaxRetries then
+        RetryCount = RetryCount + 1
+        yield("/echo [TeleportNav] Navigation failed, retrying... Attempt " .. RetryCount .. "/" .. MaxRetries)
+        
+        -- Reset flags for retry
+        FlightAttempted = false
+        WalkingAttempted = false
+        
+        yield("/wait 2")
+    else
+        yield("/echo [TeleportNav] ERROR: Maximum retry attempts reached, stopping script")
+        break
+    end
+end
+
+-- Final distance check
+local finalDistance = GetDistanceToTarget()
 yield("/echo [TeleportNav] Script execution completed")
+yield("/echo [TeleportNav] *** THIS IS THE UPDATED LINEAR VERSION - NO STATE MACHINE ***")
+yield("/echo [TeleportNav] Final distance to target: " .. string.format("%.2f", finalDistance))
+
+if IsAtTarget(5.0) then
+    yield("/echo [TeleportNav] SUCCESS: Arrived at target location!")
+else
+    yield("/echo [TeleportNav] WARNING: Did not reach target location")
+end

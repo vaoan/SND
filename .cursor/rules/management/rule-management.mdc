@@ -94,6 +94,7 @@ Organize rules into logical categories:
 │   ├── metadata-structure.mdc        # Metadata structure requirements
 │   ├── configuration-system.mdc      # Configuration system patterns
 │   ├── version-management.mdc        # Version control and semantic versioning
+│   ├── version-fingerprinting.mdc    # Version fingerprinting for cache detection
 │   ├── state-machines.mdc            # State machine architecture
 │   ├── character-conditions.mdc      # Character condition checking
 │   └── error-handling.mdc            # Error handling patterns
@@ -352,6 +353,7 @@ Track rule quality through:
 - [Metadata Structure](../core/metadata-structure.mdc) - Metadata structure requirements
 - [Configuration System](../core/configuration-system.mdc) - Configuration system patterns
 - [Version Management](../core/version-management.mdc) - Version control and semantic versioning
+- [Version Fingerprinting](../core/version-fingerprinting.mdc) - Version fingerprinting for cache detection
 - [State Machines](../core/state-machines.mdc) - State machine architecture
 - [Character Conditions](../core/character-conditions.mdc) - Character condition checking
 - [Error Handling](../core/error-handling.mdc) - Error handling patterns

@@ -310,9 +310,11 @@ configs:
 
 ## Related Rules
 - [Metadata Structure](metadata-structure.mdc) - Metadata header requirements
+- [Version Fingerprinting](version-fingerprinting.mdc) - Version fingerprinting for cache detection
 - [Error Handling](error-handling.mdc) - Error handling for version validation
 - [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
 
 ## Rule Dependencies
 This rule extends:
 - [Metadata Structure](metadata-structure.mdc) - Builds upon metadata structure for version tracking
+- [Version Fingerprinting](version-fingerprinting.mdc) - Uses fingerprinting for cache detection

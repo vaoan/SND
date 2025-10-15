@@ -32,6 +32,10 @@ configs:
 [[End Metadata]]
 --]=====]
 
+-- Version Fingerprint: v1.0.0-20240115-143022-abc123
+-- Generated: 2024-01-15 14:30:22
+-- Hash: abc123def456789
+
 -- Version History
 -- v1.0.0 - Initial version
 
@@ -50,6 +54,7 @@ configs:
 3. Add any required `plugin_dependencies` (remove the field if none needed)
 4. Add any `configs` if user-configurable settings are needed (remove the field if none needed)
 5. **IMPORTANT**: Increment version number for any changes (see [Version Management](../core/version-management.mdc))
+6. **CRITICAL**: Update version fingerprint for any changes (see [Version Fingerprinting](../core/version-fingerprinting.mdc))
 
 ### Smart Defaults Based on Filename
 - If filename contains "crafting" → suggest crafting-related description
@@ -147,9 +152,11 @@ This rule works in conjunction with the main SND development rules to ensure:
 - [Metadata Structure](../core/metadata-structure.mdc) - Metadata structure requirements
 - [Configuration System](../core/configuration-system.mdc) - Configuration patterns
 - [Version Management](../core/version-management.mdc) - Version control and semantic versioning
+- [Version Fingerprinting](../core/version-fingerprinting.mdc) - Version fingerprinting for cache detection
 - [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
 
 ## Rule Dependencies
 This rule extends:
 - [Metadata Structure](../core/metadata-structure.mdc) - Uses metadata structure for template generation
 - [Version Management](../core/version-management.mdc) - Uses version management for template versioning
+- [Version Fingerprinting](../core/version-fingerprinting.mdc) - Uses fingerprinting for template cache detection
