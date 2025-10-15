@@ -1,17 +1,14 @@
 --[=====[
 [[SND Metadata]]
 author: 'Developer'
-version: 1.2.8
+version: 1.8.3
 description: Teleportation and navigation script with flight detection and walking fallback
 plugin_dependencies:
 - Lifestream
 - vnavmesh
 configs:
-  TargetLocation:
-    default: "Ul'dah - Steps of Nald"
-    description: Location name to teleport to (use Lifestream location names)
   TargetMapId:
-    default: 35.00
+    default: 130
     description: Map ID of the target location (use /mapid command to find this)
   TargetX:
     default: 100.0
@@ -44,12 +41,68 @@ local CharacterCondition = {
     occupiedSummoningBell = 50
 }
 
+-- Map ID to Name conversion function
+function GetMapNameFromId(mapId)
+    -- Try to get current territory name if it matches the map ID (this works!)
+    if Svc and Svc.ClientState and Svc.ClientState.TerritoryType == mapId then
+        if Svc and Svc.TerritoryInfo and Svc.TerritoryInfo.PlaceName then
+            local success, placeName = pcall(function()
+                return Svc.TerritoryInfo.PlaceName.Name
+            end)
+            
+            if success and placeName then
+                yield("/echo [TeleportNav] DEBUG: Got current territory name: " .. placeName)
+                return placeName
+            end
+        end
+    end
+    
+    -- Fallback: Minimal hardcoded mapping for common locations
+    local commonLocations = {
+        [130] = "Limsa Lominsa Lower Decks",
+        [129] = "Limsa Lominsa Upper Decks", 
+        [35] = "Ul'dah - Steps of Nald",
+        [36] = "Ul'dah - Steps of Thal",
+        [2] = "New Gridania",
+        [1] = "Old Gridania",
+        [419] = "Foundation (Ishgard)",
+        [420] = "The Pillars (Ishgard)",
+        [628] = "Kugane",
+        [819] = "The Crystarium",
+        [820] = "Eulmore",
+        [1055] = "Radz-at-Han",
+        [1056] = "Solution Nine",
+        [1057] = "Old Sharlayan",
+        [1058] = "Labyrinthos",
+        [1059] = "Thavnair",
+        [1060] = "Garlemald",
+        [1061] = "Mare Lamentorum",
+        [1062] = "Ultima Thule",
+        [1063] = "Elpis",
+        [156] = "Revenant's Toll (Mor Dhona)",
+        [478] = "Idyllshire",
+        [635] = "Rhalgr's Reach"
+    }
+    
+    local locationName = commonLocations[mapId]
+    if locationName then
+        yield("/echo [TeleportNav] DEBUG: Found location name from mapping: " .. locationName)
+        return locationName
+    end
+    
+    -- Final fallback: return nil
+    yield("/echo [TeleportNav] DEBUG: Could not get territory name for map ID: " .. mapId)
+    return nil
+end
+
 -- Configuration values
-local TargetLocation = Config.Get("TargetLocation") or "Limsa Lominsa Lower Decks"
-local TargetMapId = tonumber(Config.Get("TargetMapId")) or 134
+local TargetMapId = tonumber(Config.Get("TargetMapId")) or 35
 local TargetX = tonumber(Config.Get("TargetX")) or 100.0
 local TargetY = tonumber(Config.Get("TargetY")) or 0.0
-local TargetZ = tonumber(Config.Get("TargetZ")) or 100.0
+local TargetZ = tonumber(Config.Get("TargetZ")) or -99.0
+
+-- Get target location name from map ID dynamically
+local TargetLocation = GetMapNameFromId(TargetMapId) or "Unknown Location"
 local FlightTimeout = tonumber(Config.Get("FlightTimeout")) or 30
 local WalkingTimeout = tonumber(Config.Get("WalkingTimeout")) or 60
 local MaxRetries = tonumber(Config.Get("MaxRetries")) or 3
@@ -62,6 +115,78 @@ local CurrentMapId = nil
 local FlightAttempted = false
 local WalkingAttempted = false
 local TeleportAttempted = false
+
+function ValidateAndConvertMapId()
+    -- Check if we have a valid map ID
+    if not TargetMapId or TargetMapId <= 0 then
+        yield("/echo [TeleportNav] ERROR: Invalid TargetMapId configuration: " .. tostring(TargetMapId))
+        yield("/echo [TeleportNav] Please set a valid map ID (use /mapid command to find this)")
+        return false
+    end
+    
+    -- Check if we successfully got the location name from the map ID
+    if not TargetLocation or TargetLocation == "Unknown Location" then
+        yield("/echo [TeleportNav] WARNING: Could not get location name for map ID: " .. TargetMapId)
+        yield("/echo [TeleportNav] This might be an invalid map ID or the territory data is not available")
+        yield("/echo [TeleportNav] Will proceed with map ID: " .. TargetMapId)
+        yield("/echo [TeleportNav] ")
+        ShowNearbyMapIds()
+    else
+        yield("/echo [TeleportNav] Target location: " .. TargetLocation .. " (ID: " .. TargetMapId .. ")")
+    end
+    
+    -- Display current map name if we can detect it dynamically
+    local currentMapName = GetMapNameFromId(CurrentMapId)
+    if currentMapName then
+        yield("/echo [TeleportNav] Current location: " .. currentMapName .. " (ID: " .. CurrentMapId .. ")")
+    else
+        yield("/echo [TeleportNav] Current map ID: " .. CurrentMapId)
+    end
+    
+    return true
+end
+
+function ShowMapIdHelp()
+    yield("/echo [TeleportNav] === MAP ID HELP ===")
+    yield("/echo [TeleportNav] To find map IDs for any location:")
+    yield("/echo [TeleportNav] 1. Go to the location in-game")
+    yield("/echo [TeleportNav] 2. Type /mapid in chat")
+    yield("/echo [TeleportNav] 3. The map ID will be displayed")
+    yield("/echo [TeleportNav] 4. Set that ID in TargetMapId configuration")
+    yield("/echo [TeleportNav] 5. The script will automatically get the location name")
+    yield("/echo [TeleportNav] ===================")
+end
+
+function ShowNearbyMapIds()
+    yield("/echo [TeleportNav] === NEARBY MAP IDS ===")
+    if Svc and Svc.DataManager then
+        local success, territoryData = pcall(function()
+            return Svc.DataManager.GetExcelSheet("TerritoryType", true)
+        end)
+        
+        if success and territoryData then
+            local count = 0
+            for i = 0, math.min(territoryData.RowCount - 1, 20) do
+                local success2, territory = pcall(function()
+                    return territoryData.GetRow(i)
+                end)
+                
+                if success2 and territory and territory.PlaceName then
+                    local success3, placeName = pcall(function()
+                        return territory.PlaceName.Value
+                    end)
+                    
+                    if success3 and placeName and placeName.Name and placeName.Name ~= "" then
+                        yield("/echo [TeleportNav] ID: " .. territory.RowId .. " = " .. placeName.Name)
+                        count = count + 1
+                        if count >= 10 then break end
+                    end
+                end
+            end
+        end
+    end
+    yield("/echo [TeleportNav] ======================")
+end
 
 -- Utility functions
 function IsCharacterBusy()
@@ -131,11 +256,15 @@ end
 function IsInCorrectMap()
     local currentMapId = nil
     
-    -- Try multiple methods to get current map ID
-    if Player and Player.MapId and Player.MapId ~= nil then
+    -- Try multiple methods to get current map ID (same order as main detection)
+    if Svc and Svc.ClientState and Svc.ClientState.TerritoryType then
+        currentMapId = Svc.ClientState.TerritoryType
+    elseif Player and Player.MapId and Player.MapId ~= nil then
         currentMapId = Player.MapId
     elseif Player and Player.TerritoryType and Player.TerritoryType ~= nil then
         currentMapId = Player.TerritoryType
+    elseif Svc and Svc.TerritoryInfo and Svc.TerritoryInfo.TerritoryType then
+        currentMapId = Svc.TerritoryInfo.TerritoryType
     end
     
     if not currentMapId then
@@ -158,8 +287,8 @@ function CanFly()
 end
 
 function ValidateConfiguration()
-    if not TargetLocation or TargetLocation == "" then
-        yield("/echo [TeleportNav] ERROR: Invalid TargetLocation configuration")
+    if not TargetMapId or TargetMapId <= 0 then
+        yield("/echo [TeleportNav] ERROR: Invalid TargetMapId configuration")
         return false
     end
     
@@ -264,19 +393,19 @@ function ExecuteFlightNavigation()
         return false
     end
     
-    FlightAttempted = true
-    yield("/echo [TeleportNav] Attempting to fly to target position")
-    
-    -- Use vnavmesh to fly to target
-    local success, error = pcall(function()
+        FlightAttempted = true
+        yield("/echo [TeleportNav] Attempting to fly to target position")
+        
+        -- Use vnavmesh to fly to target
+        local success, error = pcall(function()
         if not IPC or not IPC.vnavmesh or not IPC.vnavmesh.MoveTo then
             error("vnavmesh.MoveTo function not available")
         end
         return IPC.vnavmesh.MoveTo(TargetPosition.x, TargetPosition.y, TargetPosition.z, true)
-    end)
-    
-    if not success then
-        yield("/echo [TeleportNav] WARNING: Flight navigation failed - " .. tostring(error))
+        end)
+        
+        if not success then
+            yield("/echo [TeleportNav] WARNING: Flight navigation failed - " .. tostring(error))
         return false
     end
     
@@ -329,9 +458,9 @@ function ExecuteWalkingNavigation()
         return false
     end
     
-    WalkingAttempted = true
-    yield("/echo [TeleportNav] Walking to target position")
-    
+        WalkingAttempted = true
+        yield("/echo [TeleportNav] Walking to target position")
+        
     -- CRITICAL: Test vnavmesh stability before attempting navigation
     yield("/echo [TeleportNav] Testing vnavmesh stability...")
     
@@ -403,8 +532,9 @@ function ExecuteWalkingNavigation()
 end
 
 -- Main execution
-yield("/echo [TeleportNav] Teleportation and Navigation Script v1.2.8")
+yield("/echo [TeleportNav] Teleportation and Navigation Script v1.8.3")
 yield("/echo [TeleportNav] *** UPDATED CODE - NO STATE MACHINE - LINEAR EXECUTION ***")
+yield("/echo [TeleportNav] *** NEW: HYBRID APPROACH - API + HARDCODED MAPPING ***")
 yield("/echo [TeleportNav] Target: " .. TargetLocation .. " at (" .. TargetX .. ", " .. TargetY .. ", " .. TargetZ .. ")")
 
 -- Validate configuration
@@ -426,36 +556,48 @@ if not Player or not Player.Available then
     return
 end
 
--- Wait for player data to be fully loaded and try multiple methods to get map ID
-yield("/echo [TeleportNav] Waiting for player data to load...")
-local waitCount = 0
+-- Try to get current map ID using multiple methods
+yield("/echo [TeleportNav] Attempting to get current map ID...")
 local currentMapId = nil
 
--- Try multiple methods to get the current map ID
-while waitCount < 50 do
-    -- Method 1: Direct Player.MapId access
-    if Player and Player.MapId and Player.MapId ~= nil then
-        currentMapId = Player.MapId
-        yield("/echo [TeleportNav] Got map ID via Player.MapId: " .. tostring(currentMapId))
-        break
+-- Method 1: Try Svc.ClientState.TerritoryType (most reliable)
+if Svc and Svc.ClientState and Svc.ClientState.TerritoryType then
+    currentMapId = Svc.ClientState.TerritoryType
+    yield("/echo [TeleportNav] Got map ID via Svc.ClientState.TerritoryType: " .. tostring(currentMapId))
+end
+
+-- Method 2: Try Player.MapId as fallback
+if not currentMapId and Player and Player.MapId and Player.MapId ~= nil then
+    currentMapId = Player.MapId
+    yield("/echo [TeleportNav] Got map ID via Player.MapId: " .. tostring(currentMapId))
+end
+
+-- Method 3: Try Player.TerritoryType as fallback
+if not currentMapId and Player and Player.TerritoryType and Player.TerritoryType ~= nil then
+    currentMapId = Player.TerritoryType
+    yield("/echo [TeleportNav] Got map ID via Player.TerritoryType: " .. tostring(currentMapId))
+end
+
+-- Method 4: Try Svc.TerritoryInfo as fallback
+if not currentMapId and Svc and Svc.TerritoryInfo and Svc.TerritoryInfo.TerritoryType then
+    currentMapId = Svc.TerritoryInfo.TerritoryType
+    yield("/echo [TeleportNav] Got map ID via Svc.TerritoryInfo: " .. tostring(currentMapId))
+end
+
+-- Method 5: Try using /mapid command as last resort
+if not currentMapId then
+    yield("/mapid")
+    yield("/wait 0.5") -- Give time for the command to execute
+    
+    -- Try again after /mapid command
+    if Svc and Svc.ClientState and Svc.ClientState.TerritoryType then
+        currentMapId = Svc.ClientState.TerritoryType
+        yield("/echo [TeleportNav] Got map ID via Svc.ClientState.TerritoryType after /mapid: " .. tostring(currentMapId))
     end
-    
-    -- Method 2: Try accessing through TerritoryType
-    if Player and Player.TerritoryType and Player.TerritoryType ~= nil then
-        currentMapId = Player.TerritoryType
-        yield("/echo [TeleportNav] Got map ID via Player.TerritoryType: " .. tostring(currentMapId))
-        break
-    end
-    
-    -- Method 3: Try using /mapid command (this might not work in SND context)
-    -- We'll skip this for now as it might not be available
-    
-    yield("/wait 0.1")
-    waitCount = waitCount + 1
 end
 
 if not currentMapId then
-    yield("/echo [TeleportNav] WARNING: Could not get current map ID after " .. (waitCount * 0.1) .. " seconds")
+    yield("/echo [TeleportNav] WARNING: Could not get current map ID using any method")
     yield("/echo [TeleportNav] This might mean you're in a special area or the game is still loading")
     yield("/echo [TeleportNav] Will proceed with teleportation to be safe")
     CurrentMapId = "Unknown"
@@ -464,15 +606,21 @@ else
     yield("/echo [TeleportNav] Successfully detected current map ID: " .. tostring(CurrentMapId))
 end
 
-yield("/echo [TeleportNav] Current map: " .. tostring(CurrentMapId) .. " (ID: " .. tostring(Player.MapId) .. "), Target location: " .. TargetLocation)
-yield("/echo [TeleportNav] Target map ID: " .. tostring(TargetMapId))
+-- Validate and convert map IDs, display location information
+if not ValidateAndConvertMapId() then
+    yield("/echo [TeleportNav] Map ID validation failed, stopping script")
+    yield("/echo [TeleportNav] Script execution completed")
+    yield("/echo [TeleportNav] *** THIS IS THE UPDATED LINEAR VERSION - NO STATE MACHINE ***")
+    return
+end
+
 yield("/echo [TeleportNav] Target position: X=" .. TargetX .. ", Y=" .. TargetY .. ", Z=" .. TargetZ)
 
 -- Main execution loop
 while not StopFlag do
     -- Check if we need to teleport
     if not IsInCorrectMap() and not TeleportAttempted then
-        yield("/echo [TeleportNav] Not in target map (current: " .. tostring(Player.MapId) .. ", target: " .. tostring(TargetMapId) .. "), teleporting...")
+        yield("/echo [TeleportNav] Not in target map (current: " .. tostring(CurrentMapId) .. ", target: " .. tostring(TargetMapId) .. "), teleporting...")
         if not ExecuteTeleportation() then
             yield("/echo [TeleportNav] Teleportation failed, stopping script")
             break
