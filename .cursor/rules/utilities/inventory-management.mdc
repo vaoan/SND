@@ -1,0 +1,340 @@
+# Inventory Management
+
+## Purpose
+Utility functions for inventory management and item handling in SND macros.
+
+## Scope
+This rule covers inventory checking, item management, and inventory space utilities.
+
+## Basic Inventory Functions
+
+### Inventory Space Checking
+```lua
+-- Get free inventory slots
+function GetFreeInventorySlots()
+    return Inventory.GetFreeInventorySlots()
+end
+
+-- Check if inventory has space
+function HasInventorySpace(requiredSlots)
+    requiredSlots = requiredSlots or 1
+    return Inventory.GetFreeInventorySlots() >= requiredSlots
+end
+
+-- Check if inventory is full
+function IsInventoryFull()
+    return Inventory.GetFreeInventorySlots() <= 0
+end
+```
+
+### Item Count Functions
+```lua
+-- Get item count by ID
+function GetItemCount(itemId)
+    return Inventory.GetItemCount(itemId)
+end
+
+-- Get item count by name
+function GetItemCountByName(itemName)
+    local itemData = Svc.DataManager.GetExcelSheet(ExcelSheet.Item)
+    for _, item in ipairs(itemData) do
+        if item.Name == itemName then
+            return Inventory.GetItemCount(item.RowId)
+        end
+    end
+    return 0
+end
+
+-- Check if has item
+function HasItem(itemId, requiredCount)
+    requiredCount = requiredCount or 1
+    return Inventory.GetItemCount(itemId) >= requiredCount
+end
+```
+
+## Advanced Inventory Functions
+
+### Find Item in Inventory
+```lua
+-- Find item in inventory by ID
+function FindItemInInventory(itemId)
+    for slot = 1, Inventory.GetMaxInventorySlots() do
+        local item = Inventory.GetItem(slot)
+        if item and item.ItemId == itemId then
+            return item, slot
+        end
+    end
+    return nil, nil
+end
+
+-- Find item in inventory by name
+function FindItemInInventoryByName(itemName)
+    local itemData = Svc.DataManager.GetExcelSheet(ExcelSheet.Item)
+    for _, item in ipairs(itemData) do
+        if item.Name == itemName then
+            return FindItemInInventory(item.RowId)
+        end
+    end
+    return nil, nil
+end
+```
+
+### Inventory Management
+```lua
+-- Sort inventory
+function SortInventory()
+    if HasPlugin("InventorySorter") then
+        IPC.InventorySorter.SortInventory()
+    else
+        yield("/echo [Script] InventorySorter plugin not available")
+    end
+end
+
+-- Discard item
+function DiscardItem(itemId, quantity)
+    quantity = quantity or 1
+    local item, slot = FindItemInInventory(itemId)
+    if item and slot then
+        Inventory.DiscardItem(slot, quantity)
+        return true
+    end
+    return false
+end
+```
+
+## Item Category Functions
+
+### Get Items by Category
+```lua
+-- Get items by category
+function GetItemsByCategory(categoryId)
+    local items = {}
+    for slot = 1, Inventory.GetMaxInventorySlots() do
+        local item = Inventory.GetItem(slot)
+        if item and item.CategoryId == categoryId then
+            table.insert(items, item)
+        end
+    end
+    return items
+end
+```
+
+### Get Items by Type
+```lua
+-- Get items by type
+function GetItemsByType(itemType)
+    local items = {}
+    for slot = 1, Inventory.GetMaxInventorySlots() do
+        local item = Inventory.GetItem(slot)
+        if item and item.ItemType == itemType then
+            table.insert(items, item)
+        end
+    end
+    return items
+end
+```
+
+## Inventory Validation
+
+### Validate Inventory Space
+```lua
+-- Validate inventory space
+function ValidateInventorySpace(requiredSlots, operation)
+    requiredSlots = requiredSlots or 1
+    operation = operation or "operation"
+    
+    if not HasInventorySpace(requiredSlots) then
+        yield("/echo [Script] ERROR: Not enough inventory space for " .. operation)
+        yield("/echo [Script] Required: " .. requiredSlots .. " slots, Available: " .. GetFreeInventorySlots())
+        return false
+    end
+    
+    return true
+end
+```
+
+### Check Inventory Prerequisites
+```lua
+-- Check inventory prerequisites
+function CheckInventoryPrerequisites(requiredItems, requiredSlots)
+    requiredItems = requiredItems or {}
+    requiredSlots = requiredSlots or 0
+    
+    -- Check required items
+    for _, item in ipairs(requiredItems) do
+        if not HasItem(item.id, item.count) then
+            yield("/echo [Script] ERROR: Missing required item: " .. item.name)
+            return false
+        end
+    end
+    
+    -- Check inventory space
+    if not ValidateInventorySpace(requiredSlots, "operation") then
+        return false
+    end
+    
+    return true
+end
+```
+
+## Inventory Monitoring
+
+### Monitor Inventory Changes
+```lua
+-- Monitor inventory changes
+function MonitorInventoryChanges(callback, timeout)
+    timeout = timeout or 30
+    local startTime = os.clock()
+    local initialSlots = GetFreeInventorySlots()
+    
+    while (os.clock() - startTime) < timeout do
+        local currentSlots = GetFreeInventorySlots()
+        if currentSlots ~= initialSlots then
+            callback(currentSlots, initialSlots)
+            return true
+        end
+        yield("/wait 0.1")
+    end
+    
+    return false
+end
+```
+
+### Log Inventory Status
+```lua
+-- Log inventory status
+function LogInventoryStatus()
+    local freeSlots = GetFreeInventorySlots()
+    local totalSlots = Inventory.GetMaxInventorySlots()
+    local usedSlots = totalSlots - freeSlots
+    
+    yield("/echo [Script] Inventory Status:")
+    yield("/echo [Script] Free slots: " .. freeSlots)
+    yield("/echo [Script] Used slots: " .. usedSlots)
+    yield("/echo [Script] Total slots: " .. totalSlots)
+end
+```
+
+## Item Management Patterns
+
+### Item Collection Pattern
+```lua
+-- Item collection pattern
+function CollectItems(itemIds, maxQuantity)
+    maxQuantity = maxQuantity or 999
+    local collectedItems = {}
+    
+    for _, itemId in ipairs(itemIds) do
+        local count = GetItemCount(itemId)
+        if count > 0 then
+            collectedItems[itemId] = count
+        end
+    end
+    
+    return collectedItems
+end
+```
+
+### Item Usage Pattern
+```lua
+-- Item usage pattern
+function UseItem(itemId, quantity)
+    quantity = quantity or 1
+    
+    if not HasItem(itemId, quantity) then
+        yield("/echo [Script] ERROR: Not enough items to use")
+        return false
+    end
+    
+    -- Use item logic here
+    yield("/echo [Script] Using item: " .. itemId .. " x" .. quantity)
+    return true
+end
+```
+
+## Configuration Integration
+
+### Inventory Configuration Variables
+```lua
+-- Add to your macro's configs section
+configs:
+  MinInventorySlots:
+    default: 5
+    description: Minimum free inventory slots required
+  MaxInventorySlots:
+    default: 100
+    description: Maximum inventory slots to use
+  EnableInventorySorting:
+    default: true
+    description: Enable automatic inventory sorting
+```
+
+### Usage in Code
+```lua
+-- Get configuration values
+local minInventorySlots = tonumber(Config.Get("MinInventorySlots"))
+local maxInventorySlots = tonumber(Config.Get("MaxInventorySlots"))
+local enableSorting = Config.Get("EnableInventorySorting") == "true"
+
+-- Use in inventory logic
+if not ValidateInventorySpace(minInventorySlots, "operation") then
+    return false
+end
+
+if enableSorting and GetFreeInventorySlots() < minInventorySlots then
+    SortInventory()
+end
+```
+
+## Best Practices
+
+### 1. Always Check Inventory Space
+```lua
+-- Check inventory space before operations
+if not ValidateInventorySpace(requiredSlots, "operation") then
+    return false
+end
+```
+
+### 2. Use Appropriate Item Checks
+```lua
+-- Use appropriate item checks
+if HasItem(itemId, requiredCount) then
+    -- Use item
+else
+    yield("/echo [Script] Missing required item")
+end
+```
+
+### 3. Handle Inventory Changes
+```lua
+-- Monitor inventory changes when needed
+MonitorInventoryChanges(function(current, initial)
+    yield("/echo [Script] Inventory changed: " .. (initial - current) .. " slots used")
+end)
+```
+
+### 4. Use Configuration Values
+```lua
+-- Use configuration values for inventory thresholds
+local minSlots = tonumber(Config.Get("MinInventorySlots")) or 5
+if GetFreeInventorySlots() < minSlots then
+    yield("/echo [Script] Low inventory space")
+end
+```
+
+### 5. Log Inventory Status
+```lua
+-- Log inventory status for debugging
+LogInventoryStatus()
+```
+
+## Related Rules
+- [Error Handling](../core/error-handling.mdc) - Error handling for inventory operations
+- [Configuration System](../core/configuration-system.mdc) - Configuration integration
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule extends:
+- [Error Handling](../core/error-handling.mdc) - Uses error handling patterns for inventory operations
+- [Configuration System](../core/configuration-system.mdc) - Uses configuration system for inventory settings

@@ -1,0 +1,334 @@
+# vnavmesh Integration
+
+## Purpose
+Integration patterns for vnavmesh plugin navigation functionality in SND macros.
+
+## Scope
+This rule covers vnavmesh movement patterns, pathfinding, and navigation error handling.
+
+## Basic vnavmesh Integration
+
+### Plugin Availability Check
+```lua
+-- Check if vnavmesh is available
+if not HasPlugin("vnavmesh") then
+    yield("/echo [Script] vnavmesh plugin not available")
+    StopFlag = true
+    return
+end
+```
+
+### Basic Movement Patterns
+```lua
+-- Move to position
+if not IPC.vnavmesh.PathfindInProgress() and not IPC.vnavmesh.IsRunning() then
+    IPC.vnavmesh.PathfindAndMoveTo(Vector3(x, y, z), false)
+end
+
+-- Wait for movement completion
+while IPC.vnavmesh.IsRunning() or IPC.vnavmesh.PathfindInProgress() do
+    yield("/wait 1")
+end
+
+-- Stop movement if needed
+IPC.vnavmesh.Stop()
+```
+
+## Advanced Movement Patterns
+
+### Move with Timeout and Error Handling
+```lua
+-- Move to position with timeout and error handling
+function MoveToPositionWithTimeout(x, y, z, timeout)
+    timeout = timeout or 30
+    
+    if not HasPlugin("vnavmesh") then
+        yield("/echo [Script] vnavmesh not available")
+        return false
+    end
+    
+    if not IPC.vnavmesh.PathfindInProgress() and not IPC.vnavmesh.IsRunning() then
+        IPC.vnavmesh.PathfindAndMoveTo(Vector3(x, y, z), false)
+    end
+    
+    local startTime = os.clock()
+    while (IPC.vnavmesh.IsRunning() or IPC.vnavmesh.PathfindInProgress()) and 
+          (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    if IPC.vnavmesh.IsRunning() then
+        yield("/echo [Script] Movement timeout, stopping")
+        IPC.vnavmesh.Stop()
+        return false
+    end
+    
+    return true
+end
+```
+
+### Move Near Position (Within Tolerance)
+```lua
+-- Move near position (within tolerance)
+function MoveNearPosition(x, y, z, tolerance, timeout)
+    tolerance = tolerance or 3.0
+    timeout = timeout or 30
+    
+    if IsAtPosition(x, y, z, tolerance) then
+        return true
+    end
+    
+    return MoveToPositionWithTimeout(x, y, z, timeout)
+end
+
+-- Check if at position (with tolerance)
+function IsAtPosition(targetX, targetY, targetZ, tolerance)
+    tolerance = tolerance or 2.0
+    local distance = GetDistanceToPoint(targetX, targetY, targetZ)
+    return distance <= tolerance
+end
+```
+
+## Movement State Integration
+
+### vnavmesh State Checking
+```lua
+-- Check if vnavmesh is running
+function IsVnavmeshRunning()
+    return IPC.vnavmesh.IsRunning() or IPC.vnavmesh.PathfindInProgress()
+end
+
+-- Wait for vnavmesh to stop
+function WaitForVnavmeshStop(timeout)
+    timeout = timeout or 30
+    local startTime = os.clock()
+    
+    while IsVnavmeshRunning() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    if IsVnavmeshRunning() then
+        yield("/echo [Script] vnavmesh timeout, forcing stop")
+        IPC.vnavmesh.Stop()
+        return false
+    end
+    
+    return true
+end
+```
+
+### Character Condition Integration
+```lua
+-- Check if character is busy (including vnavmesh)
+function IsCharacterBusy()
+    return Svc.Condition[CharacterCondition.casting] or
+           Svc.Condition[CharacterCondition.betweenAreas] or
+           Svc.Condition[CharacterCondition.beingMoved] or
+           IPC.vnavmesh.IsRunning() or
+           Player.IsBusy
+end
+```
+
+## State Machine Integration
+
+### Movement State Pattern
+```lua
+-- Add movement state to your state machine
+CharacterState = {
+    ready = Ready,
+    moving = Moving,
+    -- ... other states
+}
+
+function Moving()
+    if MoveToPositionWithTimeout(targetX, targetY, targetZ, 30) then
+        yield("/echo [Script] Movement completed")
+        State = CharacterState.ready
+    else
+        yield("/echo [Script] Movement failed")
+        State = CharacterState.ready
+    end
+end
+```
+
+### Movement with Retry
+```lua
+-- Movement with retry logic
+function MoveWithRetry(x, y, z, maxRetries)
+    maxRetries = maxRetries or 3
+    
+    for attempt = 1, maxRetries do
+        if MoveToPositionWithTimeout(x, y, z, 30) then
+            return true
+        end
+        
+        if attempt < maxRetries then
+            yield("/echo [Script] Movement attempt " .. attempt .. " failed, retrying")
+            yield("/wait 2")
+        end
+    end
+    
+    yield("/echo [Script] Movement failed after " .. maxRetries .. " attempts")
+    return false
+end
+```
+
+## Error Handling
+
+### Movement Timeout Handling
+```lua
+-- Handle movement timeout
+local startTime = os.clock()
+while IPC.vnavmesh.IsRunning() and (os.clock() - startTime) < 30 do
+    yield("/wait 1")
+end
+
+if IPC.vnavmesh.IsRunning() then
+    yield("/echo [Script] WARNING: Movement taking too long, stopping...")
+    IPC.vnavmesh.Stop()
+end
+```
+
+### Safe Movement Function
+```lua
+-- Safe movement function with comprehensive error handling
+function SafeMoveToPosition(x, y, z, timeout)
+    timeout = timeout or 30
+    
+    -- Check prerequisites
+    if not HasPlugin("vnavmesh") then
+        yield("/echo [Script] ERROR: vnavmesh plugin not available")
+        return false
+    end
+    
+    if not Player.Available then
+        yield("/echo [Script] ERROR: Player not available")
+        return false
+    end
+    
+    -- Check if already at destination
+    if IsAtPosition(x, y, z, 2.0) then
+        yield("/echo [Script] Already at destination")
+        return true
+    end
+    
+    -- Start movement
+    if not IPC.vnavmesh.PathfindInProgress() and not IPC.vnavmesh.IsRunning() then
+        IPC.vnavmesh.PathfindAndMoveTo(Vector3(x, y, z), false)
+    end
+    
+    -- Wait for completion with timeout
+    local startTime = os.clock()
+    while (IPC.vnavmesh.IsRunning() or IPC.vnavmesh.PathfindInProgress()) and 
+          (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    -- Handle timeout
+    if IPC.vnavmesh.IsRunning() then
+        yield("/echo [Script] WARNING: Movement timeout, stopping")
+        IPC.vnavmesh.Stop()
+        return false
+    end
+    
+    -- Verify arrival
+    if IsAtPosition(x, y, z, 3.0) then
+        yield("/echo [Script] Movement completed successfully")
+        return true
+    else
+        yield("/echo [Script] WARNING: Movement completed but not at exact destination")
+        return true -- Still consider success if close enough
+    end
+end
+```
+
+## Configuration Integration
+
+### vnavmesh Configuration Variables
+```lua
+-- Add to your macro's configs section
+configs:
+  EnableVnavmesh:
+    default: true
+    description: Enable vnavmesh navigation
+  MovementTimeout:
+    default: 30
+    description: Movement timeout in seconds
+  MovementTolerance:
+    default: 3.0
+    description: Movement tolerance distance
+```
+
+### Usage in Code
+```lua
+-- Get configuration values
+local enableVnavmesh = Config.Get("EnableVnavmesh") == "true"
+local movementTimeout = tonumber(Config.Get("MovementTimeout"))
+local movementTolerance = tonumber(Config.Get("MovementTolerance"))
+
+-- Use in movement logic
+if enableVnavmesh and HasPlugin("vnavmesh") then
+    if not SafeMoveToPosition(x, y, z, movementTimeout) then
+        yield("/echo [Script] Movement failed")
+        return false
+    end
+end
+```
+
+## Best Practices
+
+### 1. Always Check Plugin Availability
+```lua
+-- Check if vnavmesh is available before use
+if not HasPlugin("vnavmesh") then
+    yield("/echo [Script] vnavmesh not available")
+    return false
+end
+```
+
+### 2. Use Timeouts for Movement
+```lua
+-- Always use timeouts for movement operations
+if not MoveToPositionWithTimeout(x, y, z, 30) then
+    yield("/echo [Script] Movement timeout")
+    return false
+end
+```
+
+### 3. Handle Movement States
+```lua
+-- Check movement state before starting new movement
+if IPC.vnavmesh.IsRunning() then
+    yield("/echo [Script] vnavmesh is already running, waiting...")
+    WaitForVnavmeshStop(30)
+end
+```
+
+### 4. Verify Arrival
+```lua
+-- Verify arrival at destination
+if not IsAtPosition(x, y, z, 3.0) then
+    yield("/echo [Script] WARNING: Not at expected destination")
+end
+```
+
+### 5. Use Appropriate Wait Times
+```lua
+-- Use appropriate wait times for movement checking
+while IPC.vnavmesh.IsRunning() do
+    yield("/wait 1") -- Longer wait for movement
+end
+```
+
+## Related Rules
+- [Character Conditions](../core/character-conditions.mdc) - Character condition checking for movement
+- [Error Handling](../core/error-handling.mdc) - Error handling patterns
+- [State Machines](../core/state-machines.mdc) - State machine integration
+- [Distance Calculations](../utilities/distance-calculations.mdc) - Distance calculation utilities
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule extends:
+- [Character Conditions](../core/character-conditions.mdc) - Uses character conditions for movement state checking
+- [Error Handling](../core/error-handling.mdc) - Uses error handling patterns for movement operations
+- [State Machines](../core/state-machines.mdc) - Uses state machine patterns for movement integration

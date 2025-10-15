@@ -1,0 +1,242 @@
+# Configuration System
+
+## Purpose
+Defines how to access and use configuration values in SND macros.
+
+## Scope
+This rule covers configuration access patterns, type conversion, and usage examples.
+
+## Configuration Access Pattern
+
+### Basic Access
+```lua
+-- Always use Config.Get() to access configuration values
+local settingValue = Config.Get("SettingName")
+
+-- Convert to appropriate type when needed
+local numericValue = tonumber(Config.Get("NumericSetting"))
+local booleanValue = Config.Get("BooleanSetting") == "true"
+```
+
+### Type-Safe Access Functions
+```lua
+-- Get configuration with type conversion
+function GetConfigAsString(key, defaultValue)
+    return Config.Get(key) or defaultValue or ""
+end
+
+function GetConfigAsNumber(key, defaultValue)
+    local value = Config.Get(key)
+    return value and tonumber(value) or defaultValue or 0
+end
+
+function GetConfigAsBoolean(key, defaultValue)
+    local value = Config.Get(key)
+    return value == "true" or (defaultValue and value ~= "false")
+end
+```
+
+## Configuration Usage Examples
+
+### String Configuration
+```lua
+-- In metadata
+configs:
+  PlayerName:
+    default: "Player Name"
+    description: Name of the player to target
+
+-- In code
+local playerName = Config.Get("PlayerName")
+```
+
+### Integer Configuration
+```lua
+-- In metadata
+configs:
+  WaitTime:
+    default: 5
+    description: Time to wait in seconds
+
+-- In code
+local waitTime = tonumber(Config.Get("WaitTime"))
+```
+
+### Float Configuration
+```lua
+-- In metadata
+configs:
+  PositionX:
+    default: 100.0
+    description: X coordinate
+
+-- In code
+local posX = tonumber(Config.Get("PositionX"))
+```
+
+### Boolean Configuration
+```lua
+-- In metadata
+configs:
+  EnableFeature:
+    default: true
+    description: Enable this feature
+
+-- In code
+local enableFeature = Config.Get("EnableFeature") == "true"
+```
+
+### Choice Configuration
+```lua
+-- In metadata
+configs:
+  HubCity:
+    default: "Limsa"
+    description: Main city to use as hub
+    is_choice: true
+    choices: ["Limsa", "Gridania", "Ul'dah", "Solution Nine"]
+
+-- In code
+local hubCity = Config.Get("HubCity")
+if hubCity == "Limsa" then
+    -- Handle Limsa
+elseif hubCity == "Gridania" then
+    -- Handle Gridania
+end
+```
+
+## Configuration Validation
+
+### Validate Configuration
+```lua
+-- Validate configuration
+function ValidateConfig(key, expectedType, required)
+    local value = Config.Get(key)
+    
+    if required and not value then
+        return false, "Required configuration missing: " .. key
+    end
+    
+    if value and expectedType == "number" and not tonumber(value) then
+        return false, "Invalid number configuration: " .. key
+    end
+    
+    if value and expectedType == "boolean" and value ~= "true" and value ~= "false" then
+        return false, "Invalid boolean configuration: " .. key
+    end
+    
+    return true, nil
+end
+```
+
+## Common Configuration Patterns
+
+### Crafting Scripts Configuration
+```lua
+configs:
+  CrafterClass:
+    default: "Carpenter"
+    description: Select the crafting class to use
+    is_choice: true
+    choices: ["Carpenter", "Blacksmith", "Armorer", "Goldsmith", "Leatherworker", "Weaver", "Alchemist", "Culinarian"]
+  ScripColor:
+    default: "Orange"
+    description: Type of scrip to use (Orange, Purple)
+    is_choice: true
+    choices: ["Orange", "Purple"]
+  HubCity:
+    default: "Solution Nine"
+    description: Main city to use as a hub
+    is_choice: true
+    choices: ["Ul'dah", "Limsa", "Gridania", "Solution Nine"]
+```
+
+### Gathering Scripts Configuration
+```lua
+configs:
+  GatheringClass:
+    default: "Miner"
+    description: Select the gathering class to use
+    is_choice: true
+    choices: ["Miner", "Botanist", "Fisher"]
+  MinInventoryFreeSlots:
+    default: 5
+    description: Minimum free inventory slots required
+```
+
+### Combat Scripts Configuration
+```lua
+configs:
+  TargetName:
+    default: "Enemy Name"
+    description: Name of the target to attack
+  UsePotion:
+    default: true
+    description: Use potions during combat
+```
+
+## Best Practices
+
+### 1. Use Descriptive Names
+```lua
+-- Good
+configs:
+  MinInventorySlots:
+    default: 5
+    description: Minimum free inventory slots required
+
+-- Bad
+configs:
+  MinSlots:
+    default: 5
+    description: Min slots
+```
+
+### 2. Provide Sensible Defaults
+```lua
+-- Good - provides reasonable default
+configs:
+  WaitTime:
+    default: 5
+    description: Time to wait in seconds
+
+-- Bad - no default or unreasonable default
+configs:
+  WaitTime:
+    description: Time to wait in seconds
+```
+
+### 3. Use Appropriate Types
+```lua
+-- Good - uses choice for limited options
+configs:
+  CrafterClass:
+    default: "Carpenter"
+    is_choice: true
+    choices: ["Carpenter", "Blacksmith", "Armorer"]
+
+-- Bad - uses string for limited options
+configs:
+  CrafterClass:
+    default: "Carpenter"
+    description: Enter crafting class name
+```
+
+### 4. Validate Configuration Values
+```lua
+-- Always validate critical configuration
+local waitTime = tonumber(Config.Get("WaitTime"))
+if not waitTime or waitTime < 0 then
+    yield("/echo [Script] Invalid wait time configuration")
+    StopFlag = true
+end
+```
+
+## Related Rules
+- [Metadata Structure](metadata-structure.mdc) - Metadata structure requirements
+- [Error Handling](error-handling.mdc) - Configuration validation error handling
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule extends:
+- [Metadata Structure](metadata-structure.mdc) - Builds upon configuration structure defined there

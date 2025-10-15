@@ -1,0 +1,136 @@
+# Metadata Structure Requirements
+
+## Purpose
+Defines the required metadata structure and format for SND macros.
+
+## Scope
+This rule covers metadata header format, required fields, optional fields, and validation requirements.
+
+## Required Metadata Header
+
+Every SND macro MUST start with the metadata header:
+
+```lua
+--[=====[
+[[SND Metadata]]
+author: 'Your Name'
+version: 1.0.0
+description: Brief description of what the macro does
+plugin_dependencies:
+- PluginName1
+- PluginName2
+configs:
+  SettingName:
+    default: "defaultValue"
+    description: What this setting does
+    is_choice: true
+    choices: ["Option1", "Option2"]
+[[End Metadata]]
+--]=====]
+```
+
+## Required Fields
+
+### author
+- **Type**: String
+- **Description**: Creator of the macro
+- **Example**: `author: 'Your Name'`
+
+### version
+- **Type**: String
+- **Description**: Version number using semantic versioning
+- **Example**: `version: 1.0.0`
+- **Format**: MAJOR.MINOR.PATCH
+
+### description
+- **Type**: String
+- **Description**: Brief description of macro functionality
+- **Example**: `description: Automated crafting script for farming materials`
+
+## Optional Fields
+
+### plugin_dependencies
+- **Type**: Array of strings
+- **Description**: Required Dalamud plugins
+- **Example**:
+```lua
+plugin_dependencies:
+- Artisan
+- vnavmesh
+- AutoRetainer
+```
+
+### configs
+- **Type**: Object with configuration parameters
+- **Description**: User-configurable settings
+- **Example**:
+```lua
+configs:
+  SettingName:
+    default: "defaultValue"
+    description: What this setting does
+    is_choice: true
+    choices: ["Option1", "Option2"]
+```
+
+## Configuration Types
+
+### String Configuration
+```lua
+configs:
+  PlayerName:
+    default: "Player Name"
+    description: Name of the player to target
+```
+
+### Integer Configuration
+```lua
+configs:
+  WaitTime:
+    default: 5
+    description: Time to wait in seconds
+```
+
+### Float Configuration
+```lua
+configs:
+  PositionX:
+    default: 100.0
+    description: X coordinate
+```
+
+### Boolean Configuration
+```lua
+configs:
+  EnableFeature:
+    default: true
+    description: Enable this feature
+```
+
+### Choice Configuration
+```lua
+configs:
+  HubCity:
+    default: "Limsa"
+    description: Main city to use as hub
+    is_choice: true
+    choices: ["Limsa", "Gridania", "Ul'dah", "Solution Nine"]
+```
+
+## Validation Rules
+
+- Every `.lua` file MUST have the metadata header
+- Author and description are required fields
+- Version must follow semantic versioning (MAJOR.MINOR.PATCH)
+- Plugin dependencies should only include actually required plugins
+- Configuration names should be descriptive and use camelCase
+
+## Related Rules
+- [Configuration System](configuration-system.mdc) - Configuration access patterns
+- [Lua Automation Templates](../templates/lua-automation.mdc) - Automatic metadata generation
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule serves as the foundation for metadata structure and is extended by:
+- [Configuration System](configuration-system.mdc) - Builds upon configuration structure defined here
+- [Lua Automation Templates](../templates/lua-automation.mdc) - Uses metadata structure for template generation

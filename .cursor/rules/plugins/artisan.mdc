@@ -1,0 +1,351 @@
+# Artisan Integration
+
+## Purpose
+Integration patterns for Artisan plugin crafting functionality in SND macros.
+
+## Scope
+This rule covers Artisan crafting patterns, list management, and crafting state handling.
+
+## Basic Artisan Integration
+
+### Plugin Availability Check
+```lua
+-- Check if Artisan is available
+if not HasPlugin("Artisan") then
+    yield("/echo [Script] Artisan plugin not available")
+    StopFlag = true
+    return
+end
+```
+
+### Basic Crafting Patterns
+```lua
+-- Check if Artisan is running
+if IPC.Artisan.IsListRunning() and not IPC.Artisan.IsListPaused() then
+    yield("/echo [Script] Artisan is already running")
+    -- Handle already running state
+end
+
+-- Start crafting
+IPC.Artisan.CraftItem(recipeId, quantity)
+
+-- Wait for crafting to complete
+while IPC.Artisan.IsListRunning() and not IPC.Artisan.IsListPaused() do
+    yield("/wait 1")
+end
+```
+
+## Advanced Artisan Patterns
+
+### Crafting State Management
+```lua
+-- Check if Artisan is running
+function IsArtisanRunning()
+    return IPC.Artisan.IsListRunning() and not IPC.Artisan.IsListPaused()
+end
+
+-- Wait for Artisan to complete
+function WaitForArtisanComplete(timeout)
+    timeout = timeout or 300 -- 5 minutes default
+    local startTime = os.clock()
+    
+    while IsArtisanRunning() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    if IsArtisanRunning() then
+        yield("/echo [Script] Artisan timeout, stopping")
+        IPC.Artisan.StopList()
+        return false
+    end
+    
+    return true
+end
+```
+
+### Endurance Status Checking
+```lua
+-- Check endurance status
+if IPC.Artisan.GetEnduranceStatus() then
+    yield("/echo [Script] Endurance is active")
+    -- Handle endurance state
+end
+```
+
+### List Control Functions
+```lua
+-- Pause/Resume Artisan
+if IPC.Artisan.IsListRunning() then
+    IPC.Artisan.PauseList()
+    yield("/wait 1")
+    IPC.Artisan.ResumeList()
+end
+
+-- Stop Artisan
+if IPC.Artisan.IsListRunning() then
+    IPC.Artisan.StopList()
+end
+```
+
+## Crafting Workflow Patterns
+
+### Complete Crafting Workflow
+```lua
+-- Complete crafting workflow
+function CompleteCraftingWorkflow(recipeId, quantity, timeout)
+    timeout = timeout or 300
+    
+    -- Check prerequisites
+    if not HasPlugin("Artisan") then
+        yield("/echo [Script] ERROR: Artisan plugin not available")
+        return false
+    end
+    
+    if not Player.Available then
+        yield("/echo [Script] ERROR: Player not available")
+        return false
+    end
+    
+    -- Check if already running
+    if IsArtisanRunning() then
+        yield("/echo [Script] Artisan is already running")
+        return true
+    end
+    
+    -- Start crafting
+    yield("/echo [Script] Starting crafting: Recipe " .. recipeId .. " x" .. quantity)
+    IPC.Artisan.CraftItem(recipeId, quantity)
+    
+    -- Wait for completion
+    if WaitForArtisanComplete(timeout) then
+        yield("/echo [Script] Crafting completed successfully")
+        return true
+    else
+        yield("/echo [Script] Crafting failed or timed out")
+        return false
+    end
+end
+```
+
+### Crafting with Retry
+```lua
+-- Crafting with retry logic
+function CraftWithRetry(recipeId, quantity, maxRetries, timeout)
+    maxRetries = maxRetries or 3
+    timeout = timeout or 300
+    
+    for attempt = 1, maxRetries do
+        if CompleteCraftingWorkflow(recipeId, quantity, timeout) then
+            return true
+        end
+        
+        if attempt < maxRetries then
+            yield("/echo [Script] Crafting attempt " .. attempt .. " failed, retrying")
+            yield("/wait 5")
+        end
+    end
+    
+    yield("/echo [Script] Crafting failed after " .. maxRetries .. " attempts")
+    return false
+end
+```
+
+## State Machine Integration
+
+### Crafting State Pattern
+```lua
+-- Add crafting state to your state machine
+CharacterState = {
+    ready = Ready,
+    crafting = Crafting,
+    -- ... other states
+}
+
+function Crafting()
+    if CompleteCraftingWorkflow(recipeId, quantity, 300) then
+        yield("/echo [Script] Crafting completed")
+        State = CharacterState.ready
+    else
+        yield("/echo [Script] Crafting failed")
+        State = CharacterState.ready
+    end
+end
+```
+
+### Crafting with Endurance Check
+```lua
+-- Crafting with endurance status monitoring
+function CraftingWithEnduranceCheck(recipeId, quantity)
+    -- Start crafting
+    IPC.Artisan.CraftItem(recipeId, quantity)
+    
+    -- Monitor crafting progress
+    while IsArtisanRunning() do
+        -- Check endurance status
+        if IPC.Artisan.GetEnduranceStatus() then
+            yield("/echo [Script] Endurance is active")
+        end
+        
+        yield("/wait 1")
+    end
+    
+    yield("/echo [Script] Crafting completed")
+end
+```
+
+## Error Handling
+
+### Artisan Error Handling
+```lua
+-- Safe Artisan function call
+function SafeArtisanCall(functionName, ...)
+    if not HasPlugin("Artisan") then
+        return nil, "Artisan plugin not available"
+    end
+    
+    local success, result = pcall(function()
+        return IPC.Artisan[functionName](...)
+    end)
+    
+    if success then
+        return result, nil
+    else
+        return nil, "Artisan call failed: " .. tostring(result)
+    end
+end
+```
+
+### Crafting Timeout Handling
+```lua
+-- Handle crafting timeout
+local startTime = os.clock()
+while IsArtisanRunning() and (os.clock() - startTime) < 300 do
+    yield("/wait 1")
+end
+
+if IsArtisanRunning() then
+    yield("/echo [Script] WARNING: Crafting taking too long, stopping...")
+    IPC.Artisan.StopList()
+end
+```
+
+## Configuration Integration
+
+### Artisan Configuration Variables
+```lua
+-- Add to your macro's configs section
+configs:
+  EnableArtisan:
+    default: true
+    description: Enable Artisan crafting
+  CraftingTimeout:
+    default: 300
+    description: Crafting timeout in seconds
+  MaxCraftingRetries:
+    default: 3
+    description: Maximum crafting retry attempts
+```
+
+### Usage in Code
+```lua
+-- Get configuration values
+local enableArtisan = Config.Get("EnableArtisan") == "true"
+local craftingTimeout = tonumber(Config.Get("CraftingTimeout"))
+local maxRetries = tonumber(Config.Get("MaxCraftingRetries"))
+
+-- Use in crafting logic
+if enableArtisan and HasPlugin("Artisan") then
+    if not CraftWithRetry(recipeId, quantity, maxRetries, craftingTimeout) then
+        yield("/echo [Script] Crafting failed")
+        return false
+    end
+end
+```
+
+## Character Condition Integration
+
+### Crafting Mode Integration
+```lua
+-- Check if character is in crafting mode
+if Svc.Condition[CharacterCondition.craftingMode] then
+    yield("/echo [Script] Character is in crafting mode")
+    -- Handle crafting mode logic
+end
+
+-- Check if character is executing crafting skill
+if Svc.Condition[CharacterCondition.executingCraftingSkill] then
+    yield("/echo [Script] Character is executing crafting skill")
+    -- Handle crafting skill execution
+end
+```
+
+### Character Busy Check with Artisan
+```lua
+-- Check if character is busy (including Artisan)
+function IsCharacterBusy()
+    return Svc.Condition[CharacterCondition.casting] or
+           Svc.Condition[CharacterCondition.betweenAreas] or
+           Svc.Condition[CharacterCondition.beingMoved] or
+           Svc.Condition[CharacterCondition.craftingMode] or
+           Svc.Condition[CharacterCondition.executingCraftingSkill] or
+           IsArtisanRunning() or
+           Player.IsBusy
+end
+```
+
+## Best Practices
+
+### 1. Always Check Plugin Availability
+```lua
+-- Check if Artisan is available before use
+if not HasPlugin("Artisan") then
+    yield("/echo [Script] Artisan not available")
+    return false
+end
+```
+
+### 2. Use Timeouts for Crafting
+```lua
+-- Always use timeouts for crafting operations
+if not WaitForArtisanComplete(300) then
+    yield("/echo [Script] Crafting timeout")
+    return false
+end
+```
+
+### 3. Handle Crafting States
+```lua
+-- Check crafting state before starting new crafting
+if IsArtisanRunning() then
+    yield("/echo [Script] Artisan is already running")
+    return true
+end
+```
+
+### 4. Monitor Endurance Status
+```lua
+-- Monitor endurance status during crafting
+if IPC.Artisan.GetEnduranceStatus() then
+    yield("/echo [Script] Endurance is active")
+end
+```
+
+### 5. Use Appropriate Wait Times
+```lua
+-- Use appropriate wait times for crafting monitoring
+while IsArtisanRunning() do
+    yield("/wait 1") -- Longer wait for crafting
+end
+```
+
+## Related Rules
+- [Character Conditions](../core/character-conditions.mdc) - Character condition checking for crafting
+- [Error Handling](../core/error-handling.mdc) - Error handling patterns
+- [State Machines](../core/state-machines.mdc) - State machine integration
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule extends:
+- [Character Conditions](../core/character-conditions.mdc) - Uses character conditions for crafting state checking
+- [Error Handling](../core/error-handling.mdc) - Uses error handling patterns for crafting operations
+- [State Machines](../core/state-machines.mdc) - Uses state machine patterns for crafting integration

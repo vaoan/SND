@@ -1,0 +1,275 @@
+# Game Addon Interactions
+
+## Purpose
+Integration patterns for general game addon interactions in SND macros.
+
+## Scope
+This rule covers general game addon interactions, UI manipulation, and addon state management.
+
+## Basic Game Addon Patterns
+
+### TripleTriad Addon
+```lua
+-- Check if TripleTriad addon is ready
+function IsTripleTriadReady()
+    return Addons.GetAddon("TripleTriad").Ready
+end
+
+-- Open TripleTriad
+function OpenTripleTriad()
+    if IsTripleTriadReady() then
+        CallbackAddon("TripleTriad", "OpenTripleTriad")
+        return true
+    end
+    return false
+end
+
+-- Close TripleTriad
+function CloseTripleTriad()
+    if IsTripleTriadReady() then
+        CallbackAddon("TripleTriad", "CloseTripleTriad")
+        return true
+    end
+    return false
+end
+```
+
+### General Addon Functions
+```lua
+-- Check if any addon is ready
+function IsAddonReady(addonName)
+    return Addons.GetAddon(addonName).Ready
+end
+
+-- Open any addon
+function OpenAddon(addonName)
+    if IsAddonReady(addonName) then
+        CallbackAddon(addonName, "Open" .. addonName)
+        return true
+    end
+    return false
+end
+
+-- Close any addon
+function CloseAddon(addonName)
+    if IsAddonReady(addonName) then
+        CallbackAddon(addonName, "Close" .. addonName)
+        return true
+    end
+    return false
+end
+```
+
+## Advanced Game Addon Patterns
+
+### Addon State Management
+```lua
+-- Check multiple addon states
+function GetGameAddonStatus(addonNames)
+    local status = {}
+    for _, addonName in ipairs(addonNames) do
+        status[addonName] = IsAddonReady(addonName)
+    end
+    return status
+end
+
+-- Wait for addon to be ready
+function WaitForAddonReady(addonName, timeout)
+    timeout = timeout or 10
+    local startTime = os.clock()
+    
+    while not IsAddonReady(addonName) and (os.clock() - startTime) < timeout do
+        yield("/wait 0.1")
+    end
+    
+    return IsAddonReady(addonName)
+end
+```
+
+### Addon Error Handling
+```lua
+-- Safe addon callback
+function SafeAddonCallback(addonName, functionName, ...)
+    if not IsAddonReady(addonName) then
+        yield("/echo [Script] Addon not ready: " .. addonName)
+        return false
+    end
+    
+    local success, result = pcall(function()
+        return CallbackAddon(addonName, functionName, ...)
+    end)
+    
+    if not success then
+        yield("/echo [Script] Addon callback failed: " .. tostring(result))
+        return false
+    end
+    
+    return result
+end
+```
+
+## Addon Workflow Integration
+
+### Complete Addon Workflow
+```lua
+-- Complete addon workflow
+function CompleteAddonWorkflow(addonName, operation, timeout)
+    timeout = timeout or 60
+    
+    -- Check prerequisites
+    if not IsAddonReady(addonName) then
+        yield("/echo [Script] ERROR: " .. addonName .. " addon not ready")
+        return false
+    end
+    
+    -- Open addon
+    if not OpenAddon(addonName) then
+        yield("/echo [Script] ERROR: Failed to open " .. addonName)
+        return false
+    end
+    
+    -- Wait for addon to open
+    yield("/wait 1")
+    
+    -- Perform operation
+    if operation then
+        operation()
+    end
+    
+    -- Close addon
+    CloseAddon(addonName)
+    
+    yield("/echo [Script] Addon workflow completed successfully")
+    return true
+end
+```
+
+## State Machine Integration
+
+### Addon State Pattern
+```lua
+-- Add addon state to your state machine
+CharacterState = {
+    ready = Ready,
+    openingAddon = OpeningAddon,
+    usingAddon = UsingAddon,
+    -- ... other states
+}
+
+function OpeningAddon()
+    if OpenAddon("TripleTriad") then
+        yield("/echo [Script] Addon opened")
+        State = CharacterState.usingAddon
+    else
+        yield("/echo [Script] Failed to open addon")
+        State = CharacterState.ready
+    end
+end
+
+function UsingAddon()
+    if CompleteAddonWorkflow("TripleTriad", function()
+        -- Addon-specific operations
+        yield("/echo [Script] Performing addon operations")
+    end, 60) then
+        yield("/echo [Script] Addon operations completed")
+        State = CharacterState.ready
+    else
+        yield("/echo [Script] Addon operations failed")
+        State = CharacterState.ready
+    end
+end
+```
+
+## Configuration Integration
+
+### Game Addon Configuration Variables
+```lua
+-- Add to your macro's configs section
+configs:
+  EnableGameAddons:
+    default: true
+    description: Enable game addon interactions
+  AddonTimeout:
+    default: 60
+    description: Addon timeout in seconds
+  AddonWaitTimeout:
+    default: 10
+    description: Addon wait timeout in seconds
+```
+
+### Usage in Code
+```lua
+-- Get configuration values
+local enableGameAddons = Config.Get("EnableGameAddons") == "true"
+local addonTimeout = tonumber(Config.Get("AddonTimeout"))
+local addonWaitTimeout = tonumber(Config.Get("AddonWaitTimeout"))
+
+-- Use in addon logic
+if enableGameAddons then
+    if not CompleteAddonWorkflow("TripleTriad", function()
+        -- Addon operations
+    end, addonTimeout) then
+        yield("/echo [Script] Addon operations failed")
+        return false
+    end
+end
+```
+
+## Best Practices
+
+### 1. Always Check Addon Readiness
+```lua
+-- Check addon readiness before use
+if not IsAddonReady("TripleTriad") then
+    yield("/echo [Script] TripleTriad not ready")
+    return false
+end
+```
+
+### 2. Use Timeouts for Addon Operations
+```lua
+-- Use timeouts for addon operations
+if not WaitForAddonReady("TripleTriad", 10) then
+    yield("/echo [Script] TripleTriad timeout")
+    return false
+end
+```
+
+### 3. Handle Addon Errors
+```lua
+-- Handle addon errors gracefully
+if not SafeAddonCallback("TripleTriad", "OpenTripleTriad") then
+    yield("/echo [Script] Failed to open TripleTriad")
+    return false
+end
+```
+
+### 4. Use Appropriate Wait Times
+```lua
+-- Use appropriate wait times for addon operations
+yield("/wait 1") -- Wait for addon to respond
+```
+
+### 5. Monitor Addon States
+```lua
+-- Monitor addon states
+local addonNames = {"TripleTriad", "OtherAddon"}
+local status = GetGameAddonStatus(addonNames)
+for addonName, isReady in pairs(status) do
+    if isReady then
+        yield("/echo [Script] " .. addonName .. " is ready")
+    end
+end
+```
+
+## Related Rules
+- [Character Conditions](../core/character-conditions.mdc) - Character condition checking for addon interactions
+- [Error Handling](../core/error-handling.mdc) - Error handling patterns
+- [State Machines](../core/state-machines.mdc) - State machine integration
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule extends:
+- [Character Conditions](../core/character-conditions.mdc) - Uses character conditions for addon state checking
+- [Error Handling](../core/error-handling.mdc) - Uses error handling patterns for addon operations
+- [State Machines](../core/state-machines.mdc) - Uses state machine patterns for addon integration

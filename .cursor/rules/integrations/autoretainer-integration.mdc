@@ -1,0 +1,376 @@
+# AutoRetainer Integration Rules
+
+## Purpose
+Comprehensive guidelines for integrating AutoRetainer plugin functionality into SND macros with proper error handling and best practices.
+
+## Scope
+This rule covers AutoRetainer API usage, error handling, character data access, and integration patterns for SND macros.
+
+## AutoRetainer API Integration
+
+### Plugin Availability Check
+Always check if AutoRetainer is available before using its functions:
+
+```lua
+-- Check if AutoRetainer is available
+if IPC.AutoRetainer then
+    -- Safe to use AutoRetainer functions
+    local isBusy = IPC.AutoRetainer.IsBusy()
+else
+    yield("/echo [Script] AutoRetainer plugin not available")
+    StopFlag = true
+end
+```
+
+### Basic Status and Control Functions
+
+#### Check Busy State
+```lua
+-- Check if AutoRetainer is busy
+if IPC.AutoRetainer.IsBusy() then
+    yield("/echo [Script] AutoRetainer is busy, waiting...")
+    while IPC.AutoRetainer.IsBusy() do
+        yield("/wait 1")
+    end
+end
+```
+
+#### Multi-Mode Management
+```lua
+-- Enable multi-mode
+IPC.AutoRetainer.EnableMultiMode()
+
+-- Check multi-mode status
+local multiModeEnabled = IPC.AutoRetainer.GetMultiModeEnabled()
+if not multiModeEnabled then
+    IPC.AutoRetainer.SetMultiModeEnabled(true)
+end
+```
+
+### Character Data Access (Critical)
+
+#### Safe Character Data Retrieval
+**CRITICAL**: Always use `Svc.ClientState.LocalContentId` instead of `Player.CID` to avoid SEHException:
+
+```lua
+-- ✅ CORRECT - Use Svc.ClientState.LocalContentId
+local currentCharId = Svc.ClientState.LocalContentId
+local characterData = IPC.AutoRetainer.GetOfflineCharacterData(currentCharId)
+
+-- ❌ WRONG - Causes SEHException
+-- local characterData = IPC.AutoRetainer.GetOfflineCharacterData(Player.CID)
+```
+
+#### Safe Character Data Function
+```lua
+function GetCharacterDataSafely(charId)
+    if not charId then
+        yield("/echo [Script] Error: No character ID provided")
+        return nil
+    end
+    
+    local success, data = pcall(function()
+        return IPC.AutoRetainer.GetOfflineCharacterData(charId)
+    end)
+    
+    if success and data then
+        return data
+    else
+        yield("/echo [Script] Error: Could not retrieve character data for ID " .. tostring(charId))
+        return nil
+    end
+end
+
+-- Usage
+local safeCharData = GetCharacterDataSafely(Svc.ClientState.LocalContentId)
+if safeCharData and safeCharData.RetainersAwaitingProcessing then
+    yield("/echo [Script] Retainers are waiting to be processed")
+end
+```
+
+### Inventory Management
+
+#### Check Inventory Space
+```lua
+-- Check free inventory slots
+local freeSlots = IPC.AutoRetainer.GetInventoryFreeSlotCount()
+if freeSlots < 5 then
+    yield("/echo [Script] Warning: Low inventory space (" .. freeSlots .. " slots)")
+    -- Handle low inventory space
+else
+    yield("/echo [Script] Inventory space OK (" .. freeSlots .. " slots)")
+end
+```
+
+#### Retainer Availability Check
+```lua
+-- Check if retainers are available
+if IPC.AutoRetainer.AreAnyRetainersAvailableForCurrentChara() then
+    yield("/echo [Script] Retainers are available for current character")
+    -- Proceed with retainer operations
+else
+    yield("/echo [Script] No retainers available for current character")
+end
+```
+
+### Task Management
+
+#### Enqueue Operations
+```lua
+-- Enqueue initiation task
+IPC.AutoRetainer.EnqueueInitiation()
+yield("/echo [Script] Initiation task enqueued")
+
+-- Enqueue HET task with retry on failure
+IPC.AutoRetainer.EnqueueHET(true)  -- true = retry on failure
+```
+
+#### Abort Operations
+```lua
+-- Abort all tasks
+IPC.AutoRetainer.AbortAllTasks()
+yield("/echo [Script] All AutoRetainer tasks aborted")
+
+-- Disable all functions
+IPC.AutoRetainer.DisableAllFunctions()
+yield("/echo [Script] All AutoRetainer functions disabled")
+```
+
+### Auto-Login and Relog Functions
+
+#### Check Auto-Login Capability
+```lua
+-- Check if auto-login is possible
+if IPC.AutoRetainer.CanAutoLogin() then
+    yield("/echo [Script] Auto-login is possible")
+else
+    yield("/echo [Script] Auto-login is not possible")
+end
+```
+
+#### Character Relog
+```lua
+-- Relog to specific character
+IPC.AutoRetainer.Relog("CharacterName WorldName")
+```
+
+### Options and Settings
+
+#### Retainer Sense Management
+```lua
+-- Check retainer sense status
+local retainerSense = IPC.AutoRetainer.GetOptionRetainerSense()
+if not retainerSense then
+    IPC.AutoRetainer.SetOptionRetainerSense(true)
+    yield("/echo [Script] Retainer sense enabled")
+end
+```
+
+#### Suppression Control
+```lua
+-- Suppress AutoRetainer
+IPC.AutoRetainer.SetSuppressed(true)
+
+-- Unsuppress AutoRetainer
+IPC.AutoRetainer.SetSuppressed(false)
+```
+
+### Grand Company and Venture Information
+
+#### Get GC Information
+```lua
+-- Get Grand Company information
+local gcInfo = IPC.AutoRetainer.GetGCInfo()
+yield("/echo [Script] Grand Company info: " .. tostring(gcInfo))
+```
+
+#### Check Venture Time
+```lua
+-- Get closest retainer venture seconds remaining
+local currentCharId = Svc.ClientState.LocalContentId
+local ventureSeconds = IPC.AutoRetainer.GetClosestRetainerVentureSecondsRemaining(currentCharId)
+yield("/echo [Script] Closest venture seconds remaining: " .. tostring(ventureSeconds))
+```
+
+## Complete AutoRetainer Workflow Pattern
+
+### Standard Workflow Function
+```lua
+function HandleAutoRetainerWorkflow()
+    -- Check if AutoRetainer is available
+    if not IPC.AutoRetainer or IPC.AutoRetainer.IsBusy() then
+        yield("/echo [Script] AutoRetainer not available")
+        return false
+    end
+    
+    -- Check inventory space
+    local freeSlots = IPC.AutoRetainer.GetInventoryFreeSlotCount()
+    if freeSlots < 3 then
+        yield("/echo [Script] Not enough inventory space")
+        return false
+    end
+    
+    -- Check if retainers need processing
+    local charData = GetCharacterDataSafely(Svc.ClientState.LocalContentId)
+    if charData and charData.RetainersAwaitingProcessing then
+        yield("/echo [Script] Enabling AutoRetainer for retainer processing")
+        IPC.AutoRetainer.EnableMultiMode()
+        return true
+    else
+        yield("/echo [Script] No retainers need processing")
+        return false
+    end
+end
+```
+
+### State Machine Integration
+```lua
+-- Add AutoRetainer state to your state machine
+CharacterState = {
+    ready = Ready,
+    processRetainers = ProcessRetainers,
+    -- ... other states
+}
+
+function ProcessRetainers()
+    if HandleAutoRetainerWorkflow() then
+        -- Wait for AutoRetainer to complete
+        while IPC.AutoRetainer.IsBusy() do
+            yield("/wait 1")
+        end
+        yield("/echo [Script] AutoRetainer processing completed")
+    end
+    State = CharacterState.ready
+end
+```
+
+## Error Handling Patterns
+
+### Common Error Solutions
+
+#### SEHException Prevention
+```lua
+-- Always use Svc.ClientState.LocalContentId
+local charId = Svc.ClientState.LocalContentId
+local charData = IPC.AutoRetainer.GetOfflineCharacterData(charId)
+```
+
+#### API Availability Check
+```lua
+-- Check if AutoRetainer is available
+if not IPC.AutoRetainer then
+    yield("/echo [Script] ERROR: AutoRetainer plugin not available")
+    StopFlag = true
+    return
+end
+```
+
+#### Safe Function Calls
+```lua
+-- Use pcall for potentially failing operations
+local success, result = pcall(function()
+    return IPC.AutoRetainer.SomeFunction()
+end)
+
+if not success then
+    yield("/echo [Script] ERROR: AutoRetainer function failed: " .. tostring(result))
+    return nil
+end
+```
+
+## Best Practices
+
+### 1. Always Check API Availability
+```lua
+if not IPC.AutoRetainer then
+    yield("/echo [Script] AutoRetainer not available")
+    return
+end
+```
+
+### 2. Use Proper Character ID
+```lua
+-- Always use Svc.ClientState.LocalContentId
+local charId = Svc.ClientState.LocalContentId
+```
+
+### 3. Implement Error Handling
+```lua
+-- Use pcall for all AutoRetainer operations
+local success, data = pcall(function()
+    return IPC.AutoRetainer.GetOfflineCharacterData(charId)
+end)
+```
+
+### 4. Check Inventory Space
+```lua
+-- Always check inventory before starting tasks
+local freeSlots = IPC.AutoRetainer.GetInventoryFreeSlotCount()
+if freeSlots < 3 then
+    yield("/echo [Script] Not enough inventory space")
+    return
+end
+```
+
+### 5. Handle Busy States
+```lua
+-- Wait for AutoRetainer to finish
+while IPC.AutoRetainer.IsBusy() do
+    yield("/wait 1")
+end
+```
+
+### 6. Use Multi-Mode Appropriately
+```lua
+-- Enable multi-mode when needed
+if charData and charData.RetainersAwaitingProcessing then
+    IPC.AutoRetainer.EnableMultiMode()
+end
+```
+
+## Configuration Integration
+
+### AutoRetainer Configuration Variables
+```lua
+-- Add to your macro's configs section
+configs:
+  EnableAutoRetainer:
+    default: true
+    description: Enable AutoRetainer integration
+  MinInventorySlots:
+    default: 5
+    description: Minimum free inventory slots required
+  AutoRetainerTimeout:
+    default: 300
+    description: AutoRetainer operation timeout in seconds
+```
+
+### Usage in Code
+```lua
+-- Get configuration values
+local enableAutoRetainer = Config.Get("EnableAutoRetainer") == "true"
+local minInventorySlots = tonumber(Config.Get("MinInventorySlots"))
+local timeout = tonumber(Config.Get("AutoRetainerTimeout"))
+
+-- Use in logic
+if enableAutoRetainer and IPC.AutoRetainer then
+    local freeSlots = IPC.AutoRetainer.GetInventoryFreeSlotCount()
+    if freeSlots >= minInventorySlots then
+        -- Proceed with AutoRetainer operations
+    end
+end
+```
+
+## Related Rules
+- [SND Development Guidelines](../core/snd-development.mdc) - Core development patterns
+- [Macro Patterns](../core/macro-patterns.mdc) - Advanced architectural patterns
+- [Plugin Integration](plugin-integration.mdc) - General plugin integration patterns
+- [Utility Functions](../utilities/utility-functions.mdc) - Utility helper functions
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule extends:
+- [SND Development Guidelines](../core/snd-development.mdc) - Uses plugin integration patterns and error handling defined there
+- [Macro Patterns](../core/macro-patterns.mdc) - Uses state machine patterns for AutoRetainer integration
+- [Plugin Integration](plugin-integration.mdc) - Specializes general plugin patterns for AutoRetainer
+- [Utility Functions](../utilities/utility-functions.mdc) - Uses utility functions for safe operations

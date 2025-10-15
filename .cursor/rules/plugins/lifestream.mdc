@@ -1,0 +1,352 @@
+# Lifestream Integration
+
+## Purpose
+Integration patterns for Lifestream plugin teleportation functionality in SND macros.
+
+## Scope
+This rule covers Lifestream teleportation patterns, location management, and teleportation error handling.
+
+## Basic Lifestream Integration
+
+### Plugin Availability Check
+```lua
+-- Check if Lifestream is available
+if not HasPlugin("Lifestream") then
+    yield("/echo [Script] Lifestream plugin not available")
+    StopFlag = true
+    return
+end
+```
+
+### Basic Teleportation Patterns
+```lua
+-- Execute teleport
+IPC.Lifestream.ExecuteCommand("Location Name")
+
+-- Wait for teleport to complete
+while IPC.Lifestream.IsBusy() do
+    yield("/wait 1")
+end
+```
+
+## Advanced Teleportation Patterns
+
+### Teleportation with Error Handling
+```lua
+-- Teleport with error handling
+function TeleportToLocation(locationName, timeout)
+    timeout = timeout or 30
+    
+    if not HasPlugin("Lifestream") then
+        yield("/echo [Script] Lifestream not available")
+        return false
+    end
+    
+    if IPC.Lifestream.IsBusy() then
+        yield("/echo [Script] Lifestream is busy, waiting...")
+        local startTime = os.clock()
+        while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < 10 do
+            yield("/wait 1")
+        end
+    end
+    
+    IPC.Lifestream.ExecuteCommand(locationName)
+    
+    local startTime = os.clock()
+    while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    if IPC.Lifestream.IsBusy() then
+        yield("/echo [Script] Teleport timeout")
+        return false
+    end
+    
+    return true
+end
+```
+
+### Teleportation State Management
+```lua
+-- Check if Lifestream is busy
+function IsLifestreamBusy()
+    return IPC.Lifestream.IsBusy()
+end
+
+-- Wait for Lifestream to complete
+function WaitForLifestreamComplete(timeout)
+    timeout = timeout or 30
+    local startTime = os.clock()
+    
+    while IsLifestreamBusy() and (os.clock() - startTime) < timeout do
+        yield("/wait 1")
+    end
+    
+    if IsLifestreamBusy() then
+        yield("/echo [Script] Lifestream timeout")
+        return false
+    end
+    
+    return true
+end
+```
+
+## Teleportation Workflow Patterns
+
+### Complete Teleportation Workflow
+```lua
+-- Complete teleportation workflow
+function CompleteTeleportationWorkflow(locationName, timeout)
+    timeout = timeout or 30
+    
+    -- Check prerequisites
+    if not HasPlugin("Lifestream") then
+        yield("/echo [Script] ERROR: Lifestream plugin not available")
+        return false
+    end
+    
+    if not Player.Available then
+        yield("/echo [Script] ERROR: Player not available")
+        return false
+    end
+    
+    -- Check if already teleporting
+    if IsLifestreamBusy() then
+        yield("/echo [Script] Lifestream is already busy")
+        return true
+    end
+    
+    -- Execute teleport
+    yield("/echo [Script] Teleporting to: " .. locationName)
+    IPC.Lifestream.ExecuteCommand(locationName)
+    
+    -- Wait for completion
+    if WaitForLifestreamComplete(timeout) then
+        yield("/echo [Script] Teleportation completed successfully")
+        return true
+    else
+        yield("/echo [Script] Teleportation failed or timed out")
+        return false
+    end
+end
+```
+
+### Teleportation with Retry
+```lua
+-- Teleportation with retry logic
+function TeleportWithRetry(locationName, maxRetries, timeout)
+    maxRetries = maxRetries or 3
+    timeout = timeout or 30
+    
+    for attempt = 1, maxRetries do
+        if CompleteTeleportationWorkflow(locationName, timeout) then
+            return true
+        end
+        
+        if attempt < maxRetries then
+            yield("/echo [Script] Teleportation attempt " .. attempt .. " failed, retrying")
+            yield("/wait 2")
+        end
+    end
+    
+    yield("/echo [Script] Teleportation failed after " .. maxRetries .. " attempts")
+    return false
+end
+```
+
+## State Machine Integration
+
+### Teleportation State Pattern
+```lua
+-- Add teleportation state to your state machine
+CharacterState = {
+    ready = Ready,
+    teleporting = Teleporting,
+    -- ... other states
+}
+
+function Teleporting()
+    if CompleteTeleportationWorkflow(targetLocation, 30) then
+        yield("/echo [Script] Teleportation completed")
+        State = CharacterState.ready
+    else
+        yield("/echo [Script] Teleportation failed")
+        State = CharacterState.ready
+    end
+end
+```
+
+### Teleportation with Zone Verification
+```lua
+-- Teleportation with zone verification
+function TeleportWithZoneVerification(locationName, expectedZoneId, timeout)
+    timeout = timeout or 30
+    
+    -- Execute teleport
+    if not CompleteTeleportationWorkflow(locationName, timeout) then
+        return false
+    end
+    
+    -- Verify zone change
+    local currentZoneId = Svc.ClientState.TerritoryType
+    if currentZoneId == expectedZoneId then
+        yield("/echo [Script] Successfully teleported to correct zone")
+        return true
+    else
+        yield("/echo [Script] WARNING: Teleported to unexpected zone")
+        return false
+    end
+end
+```
+
+## Character Condition Integration
+
+### Between Areas Condition
+```lua
+-- Check if character is between areas (teleporting)
+if Svc.Condition[CharacterCondition.betweenAreas] then
+    yield("/echo [Script] Character is teleporting")
+    -- Wait for teleport to complete
+    while Svc.Condition[CharacterCondition.betweenAreas] do
+        yield("/wait 0.1")
+    end
+end
+```
+
+### Character Busy Check with Lifestream
+```lua
+-- Check if character is busy (including Lifestream)
+function IsCharacterBusy()
+    return Svc.Condition[CharacterCondition.casting] or
+           Svc.Condition[CharacterCondition.betweenAreas] or
+           Svc.Condition[CharacterCondition.beingMoved] or
+           IPC.Lifestream.IsBusy() or
+           Player.IsBusy
+end
+```
+
+## Error Handling
+
+### Lifestream Error Handling
+```lua
+-- Safe Lifestream function call
+function SafeLifestreamCall(functionName, ...)
+    if not HasPlugin("Lifestream") then
+        return nil, "Lifestream plugin not available"
+    end
+    
+    local success, result = pcall(function()
+        return IPC.Lifestream[functionName](...)
+    end)
+    
+    if success then
+        return result, nil
+    else
+        return nil, "Lifestream call failed: " .. tostring(result)
+    end
+end
+```
+
+### Teleportation Timeout Handling
+```lua
+-- Handle teleportation timeout
+local startTime = os.clock()
+while IPC.Lifestream.IsBusy() and (os.clock() - startTime) < 30 do
+    yield("/wait 1")
+end
+
+if IPC.Lifestream.IsBusy() then
+    yield("/echo [Script] WARNING: Teleportation taking too long")
+end
+```
+
+## Configuration Integration
+
+### Lifestream Configuration Variables
+```lua
+-- Add to your macro's configs section
+configs:
+  EnableLifestream:
+    default: true
+    description: Enable Lifestream teleportation
+  TeleportationTimeout:
+    default: 30
+    description: Teleportation timeout in seconds
+  MaxTeleportationRetries:
+    default: 3
+    description: Maximum teleportation retry attempts
+```
+
+### Usage in Code
+```lua
+-- Get configuration values
+local enableLifestream = Config.Get("EnableLifestream") == "true"
+local teleportationTimeout = tonumber(Config.Get("TeleportationTimeout"))
+local maxRetries = tonumber(Config.Get("MaxTeleportationRetries"))
+
+-- Use in teleportation logic
+if enableLifestream and HasPlugin("Lifestream") then
+    if not TeleportWithRetry(locationName, maxRetries, teleportationTimeout) then
+        yield("/echo [Script] Teleportation failed")
+        return false
+    end
+end
+```
+
+## Best Practices
+
+### 1. Always Check Plugin Availability
+```lua
+-- Check if Lifestream is available before use
+if not HasPlugin("Lifestream") then
+    yield("/echo [Script] Lifestream not available")
+    return false
+end
+```
+
+### 2. Use Timeouts for Teleportation
+```lua
+-- Always use timeouts for teleportation operations
+if not WaitForLifestreamComplete(30) then
+    yield("/echo [Script] Teleportation timeout")
+    return false
+end
+```
+
+### 3. Handle Teleportation States
+```lua
+-- Check teleportation state before starting new teleportation
+if IsLifestreamBusy() then
+    yield("/echo [Script] Lifestream is already busy")
+    return true
+end
+```
+
+### 4. Verify Zone Changes
+```lua
+-- Verify zone change after teleportation
+local currentZoneId = Svc.ClientState.TerritoryType
+if currentZoneId == expectedZoneId then
+    yield("/echo [Script] Successfully teleported to correct zone")
+end
+```
+
+### 5. Use Appropriate Wait Times
+```lua
+-- Use appropriate wait times for teleportation monitoring
+while IPC.Lifestream.IsBusy() do
+    yield("/wait 1") -- Longer wait for teleportation
+end
+```
+
+## Related Rules
+- [Character Conditions](../core/character-conditions.mdc) - Character condition checking for teleportation
+- [Error Handling](../core/error-handling.mdc) - Error handling patterns
+- [State Machines](../core/state-machines.mdc) - State machine integration
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule extends:
+- [Character Conditions](../core/character-conditions.mdc) - Uses character conditions for teleportation state checking
+- [Error Handling](../core/error-handling.mdc) - Uses error handling patterns for teleportation operations
+- [State Machines](../core/state-machines.mdc) - Uses state machine patterns for teleportation integration

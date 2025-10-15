@@ -1,0 +1,225 @@
+# Rule Management and Organization
+
+## Purpose
+Guidelines for organizing, managing, and preventing duplication in cursor rules.
+
+## Scope
+This rule covers rule organization, cross-referencing, consolidation, and maintenance processes.
+
+## Rule Duplication Prevention and Organization
+
+### Core Principle
+**No rule should be defined in multiple places.** Each rule should have a single source of truth and be properly referenced elsewhere.
+
+### Rule Organization Structure
+
+#### 1. Rule Categories
+Organize rules into logical categories:
+
+```
+.cursor/rules/
+├── core/                    # Core development rules
+│   ├── metadata-structure.mdc        # Metadata structure requirements
+│   ├── configuration-system.mdc      # Configuration system patterns
+│   ├── state-machines.mdc            # State machine architecture
+│   ├── character-conditions.mdc      # Character condition checking
+│   └── error-handling.mdc            # Error handling patterns
+├── templates/               # Template and automation rules
+│   └── lua-automation.mdc   # Lua file automation and templates
+├── plugins/                 # Individual plugin integration rules
+│   ├── vnavmesh.mdc         # vnavmesh navigation integration
+│   ├── artisan.mdc          # Artisan crafting integration
+│   ├── lifestream.mdc       # Lifestream teleportation integration
+│   ├── saucy.mdc            # Saucy fishing integration
+│   └── autoretainer-integration.mdc  # AutoRetainer plugin integration
+├── addons/                  # Addon interaction rules
+│   ├── crafting-addons.mdc  # Crafting addon interactions
+│   ├── shop-addons.mdc      # Shop addon interactions
+│   └── game-addons.mdc      # General game addon interactions
+├── utilities/               # Utility and helper function rules
+│   ├── distance-calculations.mdc     # Distance calculation utilities
+│   ├── inventory-management.mdc      # Inventory management utilities
+│   └── status-checking.mdc           # Status checking utilities
+└── management/              # Rule management itself
+    └── rule-management.mdc  # This file
+```
+
+#### 2. Rule Naming Convention
+- Use descriptive, kebab-case names
+- Include category prefix when appropriate
+- Examples: `snd-development.mdc`, `lua-automation.mdc`, `plugin-integration.mdc`
+
+### Rule Creation Process
+
+#### Before Creating a New Rule
+1. **Search existing rules** for similar content
+2. **Check if rule already exists** in a different file
+3. **Determine the appropriate category** for the new rule
+4. **Plan the rule's scope** and boundaries
+
+#### Rule Creation Checklist
+- [ ] Rule doesn't duplicate existing content
+- [ ] Rule has a clear, single responsibility
+- [ ] Rule is placed in the correct category
+- [ ] Rule has a descriptive filename
+- [ ] Rule includes proper cross-references to related rules
+
+### Rule Referencing System
+
+#### 1. Cross-Reference Format
+When referencing other rules, use this format:
+```markdown
+> **See also**: [Rule Name](relative-path-to-rule.mdc)
+```
+
+#### 2. Related Rules Section
+Each rule should include a "Related Rules" section:
+```markdown
+## Related Rules
+- [SND Development Guidelines](snd-development.mdc) - Core development patterns
+- [Lua Metadata Template](templates/lua-metadata-template.mdc) - Metadata structure
+- [Plugin Integration](integrations/plugin-integration.mdc) - Plugin usage patterns
+```
+
+#### 3. Rule Dependencies
+Document which rules depend on others:
+```markdown
+## Rule Dependencies
+This rule extends and depends on:
+- [SND Development Guidelines](../core/snd-development.mdc)
+- [Code Standards](../core/code-standards.mdc)
+```
+
+### Rule Consolidation Process
+
+#### When Duplication is Found
+1. **Identify the authoritative source** (usually the most comprehensive or recent)
+2. **Move unique content** from duplicate to authoritative source
+3. **Update all references** to point to the authoritative source
+4. **Delete duplicate files**
+5. **Update cross-references** in remaining rules
+
+#### Consolidation Checklist
+- [ ] All unique content preserved
+- [ ] No information lost during consolidation
+- [ ] All references updated
+- [ ] Duplicate files removed
+- [ ] Cross-references updated
+
+### Rule Maintenance
+
+#### Regular Review Process
+1. **Monthly review** of all rules for:
+   - Duplication
+   - Outdated information
+   - Missing cross-references
+   - Inconsistent formatting
+
+2. **Before major updates**:
+   - Check for impact on other rules
+   - Update related rules if necessary
+   - Maintain cross-reference integrity
+
+#### Rule Update Protocol
+1. **Identify affected rules** before making changes
+2. **Update cross-references** in related rules
+3. **Test rule interactions** after updates
+4. **Document changes** in rule changelog
+
+### Rule Documentation Standards
+
+#### Required Sections
+Every rule file must include:
+1. **Title and Purpose** - Clear description of what the rule covers
+2. **Scope** - What is included/excluded
+3. **Implementation** - How to follow the rule
+4. **Examples** - Practical examples
+5. **Related Rules** - Cross-references to other rules
+6. **Rule Dependencies** - Which rules this depends on
+
+#### Optional Sections
+- **Exceptions** - When the rule doesn't apply
+- **Best Practices** - Additional guidance
+- **Common Mistakes** - What to avoid
+- **Troubleshooting** - Common issues and solutions
+
+### Rule Conflict Resolution
+
+#### When Rules Conflict
+1. **Identify the conflict** clearly
+2. **Determine precedence** based on:
+   - Rule specificity (more specific overrides general)
+   - Rule recency (newer rules override older)
+   - Rule authority (core rules override utility rules)
+3. **Resolve the conflict** by:
+   - Updating one rule to reference the other
+   - Consolidating conflicting rules
+   - Creating a hierarchy of rules
+4. **Document the resolution** and update cross-references
+
+### Rule Versioning
+
+#### Version Tracking
+- Use semantic versioning for major rule changes
+- Include version history in rule files
+- Track breaking changes and migrations
+
+#### Example Version Section
+```markdown
+## Version History
+- v1.0.0 - Initial rule creation
+- v1.1.0 - Added plugin integration examples
+- v2.0.0 - BREAKING: Restructured configuration system
+```
+
+### Rule Testing and Validation
+
+#### Rule Validation Checklist
+- [ ] Rule is clear and unambiguous
+- [ ] Rule doesn't conflict with existing rules
+- [ ] Rule has proper cross-references
+- [ ] Rule follows naming conventions
+- [ ] Rule is in the correct category
+- [ ] Rule includes examples
+- [ ] Rule is properly documented
+
+#### Rule Testing Process
+1. **Create test scenarios** based on the rule
+2. **Verify rule behavior** in practice
+3. **Check rule interactions** with other rules
+4. **Validate cross-references** work correctly
+
+### Emergency Rule Management
+
+#### When Rules Break
+1. **Immediate fix** - Address the immediate issue
+2. **Root cause analysis** - Understand why the rule failed
+3. **Rule update** - Fix the underlying rule
+4. **Impact assessment** - Check for effects on other rules
+5. **Documentation update** - Update related documentation
+
+### Rule Archive and Cleanup
+
+#### Archiving Obsolete Rules
+- Move outdated rules to `.cursor/rules/archive/`
+- Update all cross-references to point to replacement rules
+- Document why the rule was archived
+- Keep archive for reference but mark as deprecated
+
+#### Cleanup Process
+- Remove unused cross-references
+- Consolidate similar rules
+- Update rule documentation
+- Verify all references still work
+
+## Related Rules
+- [SND Development Guidelines](../core/snd-development.mdc) - Core development patterns
+- [Macro Patterns](../core/macro-patterns.mdc) - Advanced architectural patterns
+- [Lua Automation Templates](../templates/lua-automation.mdc) - Template automation
+- [AutoRetainer Integration](../integrations/autoretainer-integration.mdc) - AutoRetainer plugin integration
+- [Plugin Integration](../integrations/plugin-integration.mdc) - General plugin integration patterns
+- [Addon Interaction](../integrations/addon-interaction.mdc) - Addon interaction patterns
+- [Utility Functions](../utilities/utility-functions.mdc) - Utility helper functions
+
+## Rule Dependencies
+This rule manages and organizes all other rules in the workspace.
