@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Developer'
-version: 1.0.0
+version: 1.0.1
 description: Teleportation and navigation script with flight detection and walking fallback
 plugin_dependencies:
 - Lifestream
@@ -375,13 +375,29 @@ ScriptState = {
 }
 
 -- Main execution loop
-yield("/echo [TeleportNav] Teleportation and Navigation Script v1.0.0")
+yield("/echo [TeleportNav] Teleportation and Navigation Script v1.0.1")
 yield("/echo [TeleportNav] Target: Map " .. TargetMapId .. " at (" .. TargetX .. ", " .. TargetY .. ", " .. TargetZ .. ")")
 
+-- Initialize state
 State = ScriptState.ready
+if not State then
+    yield("/echo [TeleportNav] ERROR: Failed to initialize state machine")
+    return
+end
+yield("/echo [TeleportNav] State machine initialized successfully")
 while not StopFlag do
-    if not IsCharacterBusy() and not IPC.Lifestream.IsBusy() then
-        State()
+    local isLifestreamBusy = false
+    if HasPlugin("Lifestream") then
+        isLifestreamBusy = IPC.Lifestream.IsBusy()
+    end
+    
+    if not IsCharacterBusy() and not isLifestreamBusy then
+        if State and type(State) == "function" then
+            State()
+        else
+            yield("/echo [TeleportNav] ERROR: Invalid state, stopping script")
+            StopFlag = true
+        end
     end
     yield("/wait 0.1")
 end
