@@ -284,14 +284,76 @@ Every rule file must include:
 - Update rule documentation
 - Verify all references still work
 
+## Self-Improvement and Quality Assurance
+
+### Rule Audit Process
+Regular auditing of all rules to ensure compliance with rule management guidelines:
+
+#### Monthly Rule Audit Checklist
+- [ ] **Metadata Compliance**: All rules have proper metadata headers
+- [ ] **Cross-Reference Integrity**: All "Related Rules" and "Rule Dependencies" sections are accurate
+- [ ] **No Circular References**: Rules don't reference each other in circular patterns
+- [ ] **Consistent Naming**: All rule names follow kebab-case convention
+- [ ] **Proper Categorization**: Rules are in correct category directories
+- [ ] **Dependency Accuracy**: Metadata dependencies match actual rule dependencies
+- [ ] **Content Freshness**: All examples and patterns are current and accurate
+- [ ] **No Duplication**: No content is duplicated across multiple rules
+
+#### Automated Quality Checks
+```markdown
+## Rule Quality Validation
+
+### Required Sections Check
+Every rule MUST contain:
+- [ ] Purpose section
+- [ ] Scope section  
+- [ ] Related Rules section
+- [ ] Rule Dependencies section
+- [ ] Proper metadata header
+
+### Cross-Reference Validation
+- [ ] All referenced rules exist
+- [ ] All referenced rules are in correct directories
+- [ ] No broken links in cross-references
+- [ ] No circular dependencies
+
+### Content Quality Checks
+- [ ] Examples are complete and functional
+- [ ] Code snippets are properly formatted
+- [ ] Best practices are clearly stated
+- [ ] Error handling is comprehensive
+```
+
+### Self-Improvement Triggers
+Rules should be updated when:
+1. **New patterns emerge** in the codebase
+2. **Best practices change** based on experience
+3. **New plugins or addons** are integrated
+4. **User feedback** indicates improvements needed
+5. **Rule violations** are discovered during audits
+
+### Continuous Improvement Process
+1. **Identify Issues**: Through regular audits or user feedback
+2. **Analyze Root Cause**: Understand why the issue occurred
+3. **Fix Immediate Problem**: Address the specific violation
+4. **Update Prevention Rules**: Add guidelines to prevent recurrence
+5. **Document Lessons Learned**: Update rule management guidelines
+6. **Communicate Changes**: Update all affected rules and cross-references
+
+### Quality Metrics
+Track rule quality through:
+- **Audit Completion Rate**: Percentage of rules passing monthly audits
+- **Cross-Reference Accuracy**: Percentage of valid cross-references
+- **User Satisfaction**: Feedback on rule usefulness and clarity
+- **Maintenance Overhead**: Time spent fixing rule violations
+
 ## Related Rules
-- [SND Development Guidelines](../core/snd-development.mdc) - Core development patterns
-- [Macro Patterns](../core/macro-patterns.mdc) - Advanced architectural patterns
+- [Metadata Structure](../core/metadata-structure.mdc) - Metadata structure requirements
+- [Configuration System](../core/configuration-system.mdc) - Configuration system patterns
+- [State Machines](../core/state-machines.mdc) - State machine architecture
+- [Character Conditions](../core/character-conditions.mdc) - Character condition checking
+- [Error Handling](../core/error-handling.mdc) - Error handling patterns
 - [Lua Automation Templates](../templates/lua-automation.mdc) - Template automation
-- [AutoRetainer Integration](../integrations/autoretainer-integration.mdc) - AutoRetainer plugin integration
-- [Plugin Integration](../integrations/plugin-integration.mdc) - General plugin integration patterns
-- [Addon Interaction](../integrations/addon-interaction.mdc) - Addon interaction patterns
-- [Utility Functions](../utilities/utility-functions.mdc) - Utility helper functions
 
 ## Rule Dependencies
 This rule manages and organizes all other rules in the workspace.

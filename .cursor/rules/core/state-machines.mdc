@@ -144,18 +144,8 @@ end
 
 ### Character Condition Constants
 ```lua
--- Common character conditions
-local CharacterCondition = {
-    craftingMode = 5,
-    casting = 27,
-    occupiedInQuestEvent = 32,
-    occupiedMateriaExtractionAndRepair = 39,
-    executingCraftingSkill = 40,
-    craftingModeIdle = 41,
-    betweenAreas = 45,
-    occupiedSummoningBell = 50,
-    beingMoved = 70
-}
+-- Use CharacterCondition constants from character-conditions rule
+-- See [Character Conditions](character-conditions.mdc) for complete constants definition
 ```
 
 ### Condition Checking in State Machine
@@ -213,29 +203,15 @@ CharacterState = {
 
 ### Error State Pattern
 ```lua
+-- Use error handling patterns from error-handling rule
+-- See [Error Handling](error-handling.mdc) for complete error state patterns
+
 CharacterState = {
     ready = Ready,
     working = Working,
     error = Error,
     recovery = Recovery
 }
-
-function Error()
-    yield("/echo [Script] ERROR: " .. errorMessage)
-    -- Log error details
-    -- Attempt recovery
-    State = CharacterState.recovery
-end
-
-function Recovery()
-    -- Attempt to recover from error
-    if recoverySuccessful then
-        State = CharacterState.ready
-    else
-        yield("/echo [Script] Recovery failed, stopping")
-        StopFlag = true
-    end
-end
 ```
 
 ### Timeout Handling

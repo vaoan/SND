@@ -382,7 +382,6 @@ end
 ```
 
 ## Related Rules
-- [vnavmesh Integration](../plugins/vnavmesh.mdc) - Movement integration with distance calculations
 - [Error Handling](../core/error-handling.mdc) - Error handling for distance calculations
 - [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
 

@@ -20,6 +20,9 @@ This rule covers AutoRetainer plugin integration, character data access, invento
 
 ### Plugin Availability Check
 ```lua
+-- Use HasPlugin function from status-checking utilities
+-- See [Status Checking](../utilities/status-checking.mdc) for HasPlugin implementation
+
 -- Check if AutoRetainer is available
 if not HasPlugin("AutoRetainer") then
     yield("/echo [Script] AutoRetainer plugin not available")
@@ -202,6 +205,7 @@ end
 ## Related Rules
 - [Character Conditions](../core/character-conditions.mdc) - Character condition checking for AutoRetainer
 - [Error Handling](../core/error-handling.mdc) - Error handling patterns
+- [Status Checking](../utilities/status-checking.mdc) - Plugin availability checking
 - [Inventory Management](../utilities/inventory-management.mdc) - Inventory management utilities
 - [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
 
@@ -209,4 +213,5 @@ end
 This rule extends:
 - [Character Conditions](../core/character-conditions.mdc) - Uses character conditions for AutoRetainer state checking
 - [Error Handling](../core/error-handling.mdc) - Uses error handling patterns for AutoRetainer operations
+- [Status Checking](../utilities/status-checking.mdc) - Uses plugin availability checking utilities
 - [Inventory Management](../utilities/inventory-management.mdc) - Uses inventory management for retainer operations

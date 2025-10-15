@@ -69,15 +69,8 @@ end
 
 ### Plugin Availability Check
 ```lua
--- Check if plugin is available
-function HasPlugin(pluginName)
-    for plugin in luanet.each(Svc.PluginInterface.InstalledPlugins) do
-        if plugin.InternalName == pluginName and plugin.IsLoaded then
-            return true
-        end
-    end
-    return false
-end
+-- Use the HasPlugin function from status-checking utilities
+-- See [Status Checking](../utilities/status-checking.mdc) for HasPlugin implementation
 
 -- Usage
 if not HasPlugin("RequiredPlugin") then
@@ -451,9 +444,11 @@ end
 ## Related Rules
 - [State Machines](state-machines.mdc) - Error handling in state machines
 - [Character Conditions](character-conditions.mdc) - Error handling for condition checking
+- [Status Checking](../utilities/status-checking.mdc) - Plugin availability checking utilities
 - [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
 
 ## Rule Dependencies
 This rule extends:
 - [State Machines](state-machines.mdc) - Provides error handling patterns for state machines
 - [Character Conditions](character-conditions.mdc) - Provides error handling for condition checking
+- [Status Checking](../utilities/status-checking.mdc) - Uses plugin availability checking utilities

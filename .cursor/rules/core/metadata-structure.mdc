@@ -85,46 +85,10 @@ configs:
 
 ## Configuration Types
 
-### String Configuration
+### Configuration Examples
 ```lua
-configs:
-  PlayerName:
-    default: "Player Name"
-    description: Name of the player to target
-```
-
-### Integer Configuration
-```lua
-configs:
-  WaitTime:
-    default: 5
-    description: Time to wait in seconds
-```
-
-### Float Configuration
-```lua
-configs:
-  PositionX:
-    default: 100.0
-    description: X coordinate
-```
-
-### Boolean Configuration
-```lua
-configs:
-  EnableFeature:
-    default: true
-    description: Enable this feature
-```
-
-### Choice Configuration
-```lua
-configs:
-  HubCity:
-    default: "Limsa"
-    description: Main city to use as hub
-    is_choice: true
-    choices: ["Limsa", "Gridania", "Ul'dah", "Solution Nine"]
+-- See [Configuration System](configuration-system.mdc) for complete configuration examples
+-- This rule focuses on metadata structure, not configuration usage patterns
 ```
 
 ## Validation Rules

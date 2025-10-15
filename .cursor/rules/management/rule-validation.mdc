@@ -1,0 +1,213 @@
+---
+title: "Rule Validation and Quality Assurance"
+description: "Automated validation rules and quality checks for cursor rules"
+version: "1.0.0"
+category: "management"
+tags: ["validation", "quality", "audit", "cursor"]
+dependencies: ["rule-management.mdc"]
+alwaysApply: true
+---
+
+# Rule Validation and Quality Assurance
+
+## Purpose
+Automated validation rules and quality checks to ensure all cursor rules comply with rule management guidelines.
+
+## Scope
+This rule covers validation patterns, quality checks, and automated compliance verification for cursor rules.
+
+## Required Rule Structure Validation
+
+### Metadata Header Validation
+Every rule MUST have a complete metadata header:
+
+```yaml
+---
+title: "Rule Title"                    # Required: Clear, descriptive title
+description: "Brief description"       # Required: What the rule covers
+version: "1.0.0"                      # Required: Semantic versioning
+category: "core|templates|plugins|addons|utilities|management"  # Required: Valid category
+tags: ["tag1", "tag2"]                # Optional: Relevant tags
+dependencies: ["../other-rule.mdc"]    # Optional: Rule dependencies
+alwaysApply: true|false               # Optional: Loading behavior
+---
+```
+
+### Required Sections Validation
+Every rule MUST contain these sections:
+
+1. **Purpose** - Clear statement of what the rule covers
+2. **Scope** - What is included/excluded from the rule
+3. **Related Rules** - Cross-references to other relevant rules
+4. **Rule Dependencies** - Which rules this rule depends on
+
+## Cross-Reference Validation Rules
+
+### No Circular References
+```markdown
+# ❌ INVALID - Circular reference
+Rule A references Rule B
+Rule B references Rule A
+
+# ✅ VALID - One-way reference
+Rule A references Rule B
+Rule B does not reference Rule A
+```
+
+### Valid Path References
+```markdown
+# ✅ VALID - Correct relative paths
+- [Core Rule](../core/rule-name.mdc)
+- [Plugin Rule](../plugins/plugin-name.mdc)
+- [Utility Rule](../utilities/utility-name.mdc)
+
+# ❌ INVALID - Broken paths
+- [Rule](rule-name.mdc)  # Missing directory
+- [Rule](core/rule-name.mdc)  # Missing ../
+```
+
+### Dependency Accuracy
+```yaml
+# Metadata dependencies MUST match actual rule dependencies
+dependencies: ["../core/error-handling.mdc"]
+
+# Rule Dependencies section MUST reference the same rules
+## Rule Dependencies
+This rule extends:
+- [Error Handling](../core/error-handling.mdc) - Uses error handling patterns
+```
+
+## Content Quality Validation
+
+### Code Example Validation
+```lua
+-- ✅ VALID - Complete, functional example
+function ExampleFunction()
+    if condition then
+        return true
+    end
+    return false
+end
+
+-- ❌ INVALID - Incomplete example
+function ExampleFunction()
+    if condition then
+        -- Missing implementation
+    end
+end
+```
+
+### Best Practices Validation
+Every rule MUST include:
+- **Clear examples** with complete code
+- **Error handling** patterns where applicable
+- **Configuration integration** examples
+- **Best practices** section with do's and don'ts
+
+## Automated Validation Checklist
+
+### Pre-Commit Validation
+Before committing any rule changes:
+
+- [ ] **Metadata Complete**: All required metadata fields present
+- [ ] **Valid Category**: Category is one of the approved values
+- [ ] **Semantic Version**: Version follows MAJOR.MINOR.PATCH format
+- [ ] **Required Sections**: Purpose, Scope, Related Rules, Rule Dependencies present
+- [ ] **No Circular References**: Check all cross-references for circularity
+- [ ] **Valid Paths**: All cross-references use correct relative paths
+- [ ] **Dependency Accuracy**: Metadata dependencies match rule dependencies
+- [ ] **Complete Examples**: All code examples are functional and complete
+- [ ] **Error Handling**: Error handling patterns included where needed
+- [ ] **Best Practices**: Clear guidance on do's and don'ts
+
+### Monthly Audit Validation
+During monthly rule audits:
+
+- [ ] **Cross-Reference Integrity**: All referenced rules exist and are accessible
+- [ ] **Content Freshness**: Examples and patterns are current
+- [ ] **No Duplication**: Content is not duplicated across multiple rules
+- [ ] **Consistent Naming**: All rule names follow kebab-case convention
+- [ ] **Proper Categorization**: Rules are in correct category directories
+- [ ] **alwaysApply Optimization**: Loading behavior is appropriate for rule type
+
+## Validation Error Prevention
+
+### Common Violations to Avoid
+
+#### 1. Missing Required Sections
+```markdown
+# ❌ INVALID - Missing sections
+# Rule content without Purpose, Scope, Related Rules, Rule Dependencies
+
+# ✅ VALID - Complete structure
+## Purpose
+Clear statement of rule purpose
+
+## Scope
+What the rule covers
+
+## Related Rules
+- [Other Rule](../path/rule.mdc) - Description
+
+## Rule Dependencies
+This rule extends:
+- [Dependency Rule](../path/dependency.mdc) - Description
+```
+
+#### 2. Broken Cross-References
+```markdown
+# ❌ INVALID - Broken references
+- [Non-existent Rule](../core/non-existent.mdc)
+- [Wrong Path](wrong/path/rule.mdc)
+
+# ✅ VALID - Working references
+- [Existing Rule](../core/existing-rule.mdc)
+- [Correct Path](../plugins/plugin-rule.mdc)
+```
+
+#### 3. Incomplete Examples
+```lua
+-- ❌ INVALID - Incomplete example
+function IncompleteExample()
+    -- Missing implementation
+end
+
+-- ✅ VALID - Complete example
+function CompleteExample()
+    if not HasPlugin("PluginName") then
+        yield("/echo [Script] Plugin not available")
+        return false
+    end
+    
+    return true
+end
+```
+
+## Quality Metrics and Monitoring
+
+### Validation Success Rate
+Track the percentage of rules passing validation:
+- **Target**: 100% of rules pass all validation checks
+- **Measurement**: Monthly audit results
+- **Action**: Fix violations immediately when discovered
+
+### Cross-Reference Accuracy
+Monitor the health of cross-references:
+- **Target**: 100% of cross-references are valid
+- **Measurement**: Automated link checking
+- **Action**: Update broken references immediately
+
+### Content Quality Score
+Assess the quality of rule content:
+- **Target**: All rules have complete, functional examples
+- **Measurement**: Manual review of examples and patterns
+- **Action**: Improve content quality through iterative updates
+
+## Related Rules
+- [Rule Management](rule-management.mdc) - Rule organization guidelines
+- [Error Handling](../core/error-handling.mdc) - Error handling patterns
+- [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
+
+## Rule Dependencies
+This rule extends:
+- [Rule Management](rule-management.mdc) - Uses rule management guidelines for validation criteria

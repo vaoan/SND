@@ -20,6 +20,9 @@ This rule covers Lifestream teleportation patterns, location management, and tel
 
 ### Plugin Availability Check
 ```lua
+-- Use HasPlugin function from status-checking utilities
+-- See [Status Checking](../utilities/status-checking.mdc) for HasPlugin implementation
+
 -- Check if Lifestream is available
 if not HasPlugin("Lifestream") then
     yield("/echo [Script] Lifestream plugin not available")
@@ -353,6 +356,7 @@ end
 - [Character Conditions](../core/character-conditions.mdc) - Character condition checking for teleportation
 - [Error Handling](../core/error-handling.mdc) - Error handling patterns
 - [State Machines](../core/state-machines.mdc) - State machine integration
+- [Status Checking](../utilities/status-checking.mdc) - Plugin availability checking
 - [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
 
 ## Rule Dependencies
@@ -360,3 +364,4 @@ This rule extends:
 - [Character Conditions](../core/character-conditions.mdc) - Uses character conditions for teleportation state checking
 - [Error Handling](../core/error-handling.mdc) - Uses error handling patterns for teleportation operations
 - [State Machines](../core/state-machines.mdc) - Uses state machine patterns for teleportation integration
+- [Status Checking](../utilities/status-checking.mdc) - Uses plugin availability checking utilities

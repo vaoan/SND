@@ -140,13 +140,10 @@ This rule works in conjunction with the main SND development rules to ensure:
 - Version control and documentation standards
 
 ## Related Rules
-- [SND Development Guidelines](../core/snd-development.mdc) - Core development patterns
-- [Macro Patterns](../core/macro-patterns.mdc) - Advanced architectural patterns
-- [Utility Functions](../utilities/utility-functions.mdc) - Utility helper functions
+- [Metadata Structure](../core/metadata-structure.mdc) - Metadata structure requirements
+- [Configuration System](../core/configuration-system.mdc) - Configuration patterns
 - [Rule Management](../management/rule-management.mdc) - Rule organization guidelines
 
 ## Rule Dependencies
 This rule extends:
-- [SND Development Guidelines](../core/snd-development.mdc) - Uses metadata structure and configuration patterns defined there
-- [Macro Patterns](../core/macro-patterns.mdc) - Uses configuration patterns for different macro types
-- [Utility Functions](../utilities/utility-functions.mdc) - Uses utility functions for configuration validation
+- [Metadata Structure](../core/metadata-structure.mdc) - Uses metadata structure for template generation
