@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Developer'
-version: 1.2.3
+version: 1.2.4
 description: Teleportation and navigation script with flight detection and walking fallback
 plugin_dependencies:
 - Lifestream
@@ -307,6 +307,61 @@ function ExecuteWalkingNavigation()
     WalkingAttempted = true
     yield("/echo [TeleportNav] Walking to target position")
     
+    -- CRITICAL: Test vnavmesh stability before attempting navigation
+    yield("/echo [TeleportNav] Testing vnavmesh stability...")
+    
+    -- Test 1: Check if vnavmesh functions exist and are callable
+    local stabilityTest1 = false
+    local test1Success, test1Result = pcall(function()
+        if not IPC or not IPC.vnavmesh then
+            return false
+        end
+        if not IPC.vnavmesh.IsRunning then
+            return false
+        end
+        -- Try to call IsRunning without parameters to test basic functionality
+        local result = IPC.vnavmesh.IsRunning()
+        return true -- If we get here, the function is callable
+    end)
+    
+    if test1Success and test1Result then
+        stabilityTest1 = true
+        yield("/echo [TeleportNav] vnavmesh stability test 1 passed")
+    else
+        yield("/echo [TeleportNav] vnavmesh stability test 1 FAILED - " .. tostring(test1Result))
+    end
+    
+    -- Test 2: Check if MoveTo function exists
+    local stabilityTest2 = false
+    local test2Success, test2Result = pcall(function()
+        if not IPC or not IPC.vnavmesh then
+            return false
+        end
+        if not IPC.vnavmesh.MoveTo then
+            return false
+        end
+        return true -- Function exists
+    end)
+    
+    if test2Success and test2Result then
+        stabilityTest2 = true
+        yield("/echo [TeleportNav] vnavmesh stability test 2 passed")
+    else
+        yield("/echo [TeleportNav] vnavmesh stability test 2 FAILED - " .. tostring(test2Result))
+    end
+    
+    -- If either stability test fails, skip vnavmesh entirely
+    if not stabilityTest1 or not stabilityTest2 then
+        yield("/echo [TeleportNav] CRITICAL: vnavmesh failed stability tests!")
+        yield("/echo [TeleportNav] vnavmesh appears to be unstable or incompatible.")
+        yield("/echo [TeleportNav] Skipping automated navigation to prevent crashes.")
+        yield("/echo [TeleportNav] FALLBACK: Target location is at coordinates X=" .. tostring(TargetPosition.x) .. " Y=" .. tostring(TargetPosition.y) .. " Z=" .. tostring(TargetPosition.z))
+        yield("/echo [TeleportNav] Please navigate manually to the target location.")
+        return false
+    end
+    
+    yield("/echo [TeleportNav] vnavmesh passed all stability tests, proceeding with navigation")
+    
     -- Use vnavmesh to walk to target with maximum safety
     local success, error = pcall(function()
         -- Triple-check everything before calling
@@ -397,7 +452,7 @@ function ExecuteWalkingNavigation()
 end
 
 -- Main execution
-yield("/echo [TeleportNav] Teleportation and Navigation Script v1.2.3")
+yield("/echo [TeleportNav] Teleportation and Navigation Script v1.2.4")
 yield("/echo [TeleportNav] *** UPDATED CODE - NO STATE MACHINE - LINEAR EXECUTION ***")
 yield("/echo [TeleportNav] Target: " .. TargetLocation .. " at (" .. TargetX .. ", " .. TargetY .. ", " .. TargetZ .. ")")
 
