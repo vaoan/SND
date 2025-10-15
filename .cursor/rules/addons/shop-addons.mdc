@@ -1,3 +1,13 @@
+---
+title: "Shop Addon Interactions"
+description: "Integration patterns for shop-related addon interactions in SND macros"
+version: "1.0.0"
+category: "addons"
+tags: ["shop", "addons", "ui", "snd"]
+dependencies: ["../core/character-conditions.mdc", "../core/error-handling.mdc"]
+alwaysApply: false
+---
+
 # Shop Addon Interactions
 
 ## Purpose

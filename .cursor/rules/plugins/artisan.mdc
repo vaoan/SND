@@ -1,3 +1,13 @@
+---
+title: "Artisan Integration"
+description: "Integration patterns for Artisan plugin crafting functionality in SND macros"
+version: "1.0.0"
+category: "plugins"
+tags: ["artisan", "crafting", "plugin", "snd"]
+dependencies: ["../core/character-conditions.mdc", "../core/error-handling.mdc"]
+alwaysApply: false
+---
+
 # Artisan Integration
 
 ## Purpose

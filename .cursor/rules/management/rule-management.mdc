@@ -1,3 +1,13 @@
+---
+title: "Rule Management and Organization"
+description: "Guidelines for organizing, managing, and preventing duplication in cursor rules"
+version: "1.0.0"
+category: "management"
+tags: ["management", "organization", "rules", "cursor"]
+dependencies: []
+alwaysApply: true
+---
+
 # Rule Management and Organization
 
 ## Purpose
@@ -5,6 +15,68 @@ Guidelines for organizing, managing, and preventing duplication in cursor rules.
 
 ## Scope
 This rule covers rule organization, cross-referencing, consolidation, and maintenance processes.
+
+## Rule Metadata Requirements
+
+### Required Metadata Header
+Every cursor rule MUST start with the metadata header:
+
+```markdown
+---
+title: "Rule Title"
+description: "Brief description of what this rule covers"
+version: "1.0.0"
+category: "core|templates|plugins|addons|utilities|management"
+tags: ["tag1", "tag2", "tag3"]
+dependencies: ["../other-rule.mdc"]
+---
+```
+
+### Metadata Fields
+
+#### title (Required)
+- **Type**: String
+- **Description**: Clear, descriptive title for the rule
+- **Example**: `title: "Metadata Structure Requirements"`
+
+#### description (Required)
+- **Type**: String
+- **Description**: Brief description of what the rule covers
+- **Example**: `description: "Defines the required metadata structure and format for SND macros"`
+
+#### version (Required)
+- **Type**: String
+- **Description**: Version number using semantic versioning
+- **Example**: `version: "1.0.0"`
+- **Format**: MAJOR.MINOR.PATCH
+
+#### category (Required)
+- **Type**: String
+- **Description**: Category this rule belongs to
+- **Options**: `core`, `templates`, `plugins`, `addons`, `utilities`, `management`
+- **Example**: `category: "core"`
+
+#### tags (Optional)
+- **Type**: Array of strings
+- **Description**: Tags for categorization and search
+- **Example**: `tags: ["metadata", "structure", "validation"]`
+
+#### dependencies (Optional)
+- **Type**: Array of strings
+- **Description**: Other rules this rule depends on
+- **Example**: `dependencies: ["../core/error-handling.mdc"]`
+
+#### alwaysApply (Optional)
+- **Type**: Boolean
+- **Description**: Whether this rule should always be loaded and active
+- **Default**: `false`
+- **Usage**:
+  - `true`: Always loaded, applies to all files (higher memory usage)
+  - `false`: Loaded on-demand when relevant files are opened (lower memory usage)
+- **Recommendation**:
+  - Use `true` for core development rules that should always be available
+  - Use `false` for specialized plugin/addon rules that are only needed occasionally
+- **Example**: `alwaysApply: true`
 
 ## Rule Duplication Prevention and Organization
 

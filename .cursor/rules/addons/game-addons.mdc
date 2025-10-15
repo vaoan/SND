@@ -1,3 +1,13 @@
+---
+title: "Game Addon Interactions"
+description: "Integration patterns for general game addon interactions in SND macros"
+version: "1.0.0"
+category: "addons"
+tags: ["game", "addons", "ui", "snd"]
+dependencies: ["../core/character-conditions.mdc", "../core/error-handling.mdc"]
+alwaysApply: false
+---
+
 # Game Addon Interactions
 
 ## Purpose

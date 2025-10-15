@@ -1,3 +1,13 @@
+---
+title: "Error Handling Patterns"
+description: "Defines comprehensive error handling patterns and best practices for SND macros"
+version: "1.0.0"
+category: "core"
+tags: ["error-handling", "validation", "safety", "snd"]
+dependencies: []
+alwaysApply: true
+---
+
 # Error Handling Patterns
 
 ## Purpose

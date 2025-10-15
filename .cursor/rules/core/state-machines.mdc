@@ -1,3 +1,13 @@
+---
+title: "State Machine Architecture"
+description: "Defines state machine patterns and architectures for complex SND macro automation"
+version: "1.0.0"
+category: "core"
+tags: ["state-machine", "architecture", "automation", "snd"]
+dependencies: ["character-conditions.mdc", "error-handling.mdc"]
+alwaysApply: true
+---
+
 # State Machine Architecture
 
 ## Purpose

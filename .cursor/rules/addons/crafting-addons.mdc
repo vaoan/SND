@@ -1,3 +1,13 @@
+---
+title: "Crafting Addon Interactions"
+description: "Integration patterns for crafting-related addon interactions in SND macros"
+version: "1.0.0"
+category: "addons"
+tags: ["crafting", "addons", "ui", "snd"]
+dependencies: ["../core/character-conditions.mdc", "../core/error-handling.mdc"]
+alwaysApply: false
+---
+
 # Crafting Addon Interactions
 
 ## Purpose

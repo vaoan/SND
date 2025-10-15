@@ -1,3 +1,13 @@
+---
+title: "Lua File Automation Templates"
+description: "Automated metadata generation and template insertion for new Lua files in SND development"
+version: "1.0.0"
+category: "templates"
+tags: ["lua", "automation", "templates", "metadata", "snd"]
+dependencies: ["../core/metadata-structure.mdc"]
+alwaysApply: true
+---
+
 # Lua File Automation Templates
 
 ## Purpose

@@ -1,3 +1,13 @@
+---
+title: "vnavmesh Integration"
+description: "Integration patterns for vnavmesh plugin navigation functionality in SND macros"
+version: "1.0.0"
+category: "plugins"
+tags: ["vnavmesh", "navigation", "movement", "plugin", "snd"]
+dependencies: ["../core/character-conditions.mdc", "../core/error-handling.mdc", "../utilities/distance-calculations.mdc"]
+alwaysApply: false
+---
+
 # vnavmesh Integration
 
 ## Purpose

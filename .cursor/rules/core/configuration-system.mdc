@@ -1,3 +1,13 @@
+---
+title: "Configuration System"
+description: "Defines how to access and use configuration values in SND macros"
+version: "1.0.0"
+category: "core"
+tags: ["configuration", "settings", "validation", "snd"]
+dependencies: ["metadata-structure.mdc"]
+alwaysApply: true
+---
+
 # Configuration System
 
 ## Purpose

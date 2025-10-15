@@ -1,3 +1,13 @@
+---
+title: "Lifestream Integration"
+description: "Integration patterns for Lifestream plugin teleportation functionality in SND macros"
+version: "1.0.0"
+category: "plugins"
+tags: ["lifestream", "teleportation", "plugin", "snd"]
+dependencies: ["../core/character-conditions.mdc", "../core/error-handling.mdc"]
+alwaysApply: false
+---
+
 # Lifestream Integration
 
 ## Purpose

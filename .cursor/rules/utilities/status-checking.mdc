@@ -1,3 +1,13 @@
+---
+title: "Status Checking"
+description: "Utility functions for status checking and validation in SND macros"
+version: "1.0.0"
+category: "utilities"
+tags: ["status", "validation", "checking", "snd"]
+dependencies: ["../core/error-handling.mdc", "../core/character-conditions.mdc", "../core/configuration-system.mdc"]
+alwaysApply: false
+---
+
 # Status Checking
 
 ## Purpose

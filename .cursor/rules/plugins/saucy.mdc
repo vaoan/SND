@@ -1,3 +1,13 @@
+---
+title: "Saucy Integration"
+description: "Integration patterns for Saucy plugin fishing functionality in SND macros"
+version: "1.0.0"
+category: "plugins"
+tags: ["saucy", "fishing", "plugin", "snd"]
+dependencies: ["../core/character-conditions.mdc", "../core/error-handling.mdc", "../utilities/inventory-management.mdc"]
+alwaysApply: false
+---
+
 # Saucy Integration
 
 ## Purpose

@@ -1,3 +1,13 @@
+---
+title: "Inventory Management"
+description: "Utility functions for inventory management and item handling in SND macros"
+version: "1.0.0"
+category: "utilities"
+tags: ["inventory", "items", "management", "snd"]
+dependencies: ["../core/error-handling.mdc", "../core/configuration-system.mdc"]
+alwaysApply: false
+---
+
 # Inventory Management
 
 ## Purpose
