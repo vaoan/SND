@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git config:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git checkout:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm start:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npm ls:*)",
+      "Bash(node:*)",
+      "Bash(find:*)",
+      "Bash(tasklist:*)",
+      "Bash(timeout:*)",
+      "Bash(mkdir:*)",
+      "Bash(test:*)",
+      "Bash(npx --version)",
+      "Bash(npx:*)",
+      "Bash(cat:*)",
+      "WebSearch",
+      "Bash(where:*)",
+      "Bash(cygpath:*)",
+      "Bash(claude mcp list:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp:*)",
+      "Bash(claude /doctor)",
+      "Bash(claude doctor:*)",
+      "Bash(echo:*)",
+      "Bash(printf:*)",
+      "Bash(taskkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"if (process.platform === 'win32') { require('child_process').execSync('powershell -ExecutionPolicy Bypass -File .claude/tools/Create-McpSymlink.ps1', {stdio: 'inherit'}) }\""
+          }
+        ]
+      }
+    ]
+  },
+  "enableAllProjectMcpServers": true
+}
