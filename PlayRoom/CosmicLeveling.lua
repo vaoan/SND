@@ -1,11 +1,11 @@
 --[=====[
 [[SND Metadata]]
 author: 'Heiner'
-version: 1.8.0
-description: Auto-leveling for Cosmic Exploration - switches jobs at configurable breakpoints
+version: 2.1.1
+description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters
 plugin_dependencies:
 - AutoDuty
-- Ice
+- ICE
 configs:
   Debug:
     description: Show detailed debug information (true/false)
@@ -41,8 +41,72 @@ configs:
     default: 91
     min: 1
     max: 100
+  CompletedCharacters:
+    description: Comma-separated list of completed characters (Name@Server format). Auto-populated when a character finishes all jobs.
+    default: ""
 [[End Metadata]]
 --]=====]
+
+--[[
+================================================================================
+                        COSMIC EXPLORATION AUTO-LEVELING
+                                  Version 2.1.1
+================================================================================
+
+This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
+It ensures all Crafter (DoH) and Gatherer (DoL) jobs are leveled evenly by
+switching jobs at configurable breakpoints.
+
+HOW IT WORKS:
+-------------
+1. On start, checks if current character is already marked as "completed"
+   (all jobs at 100). If so, skips entirely and exits (does nothing).
+
+2. Checks all jobs in current category (Crafter or Gatherer) against breakpoints.
+   If any job needs leveling, ensures Ice is started.
+
+3. Two modes available:
+   - CATCH-UP MODE (default): Always checks if any job is behind any breakpoint
+     that the current job has passed. Switches to the lowest level job that
+     needs to catch up.
+   - STRICT MODE: Only checks when you hit an exact breakpoint level (50, 63, etc).
+     Switches to jobs that haven't reached that specific breakpoint yet.
+
+4. When all jobs in current category reach 100, automatically switches to the
+   other category (Crafter <-> Gatherer) and continues the process.
+
+5. When ALL jobs (both categories) reach 100:
+   - Marks the character as "completed" in config (persisted)
+   - Stops Ice
+   - Future runs will skip entirely (no Ice start/stop, just exits)
+
+BREAKPOINTS:
+------------
+Default breakpoints: 50, 63, 71, 81, 91
+These represent levels where you should rotate to let other jobs catch up.
+Customize via config settings.
+
+EXAMPLE FLOW (Catch-up Mode):
+-----------------------------
+- You're on CRP Lv.63, but BSM is Lv.45
+- Script detects BSM is behind the 50 breakpoint
+- Switches to BSM, equips recommended gear, starts Ice
+- Next run: BSM is now 52, all crafters at 50+, continue leveling
+
+COMPLETED CHARACTERS:
+---------------------
+When a character finishes all jobs, they're saved to CompletedCharacters config
+as "CharacterName@ServerName". On future runs, the script recognizes them and
+skips entirely (does nothing).
+
+REQUIREMENTS:
+-------------
+- ICE plugin (for Cosmic Exploration automation)
+- AutoDuty plugin (for /ad equiprec - equip recommended gear)
+- Gearsets configured for all DoH/DoL jobs
+
+================================================================================
+]]
 
 -- Job Categories
 -- Crafters (DoH - Disciples of Hand): IDs 8-15
@@ -69,11 +133,65 @@ local GathererJobs = {
 local DEBUG = Config.Get("Debug") == "true" or Config.Get("Debug") == true
 local USE_ICE = Config.Get("UseIce") == "true" or Config.Get("UseIce") == true
 local CATCHUP_MODE = Config.Get("CatchupMode") == "true" or Config.Get("CatchupMode") == true
+local COMPLETED_CHARACTERS = Config.Get("CompletedCharacters") or ""
+
+-- Helper: Get current character identifier (Name@Server)
+local function GetCharacterKey()
+    local lp = Svc.ClientState.LocalPlayer
+    if not lp then return nil end
+
+    local name = lp.Name:ToString()
+    local world = lp.HomeWorld.Value.Name:ToString()
+    return name .. "@" .. world
+end
+
+-- Helper: Check if current character is marked as completed
+local function IsCharacterCompleted(charKey)
+    if COMPLETED_CHARACTERS == "" then return false end
+    for completed in string.gmatch(COMPLETED_CHARACTERS, "([^,]+)") do
+        -- Trim whitespace
+        completed = completed:match("^%s*(.-)%s*$")
+        if completed == charKey then
+            return true
+        end
+    end
+    return false
+end
+
+-- Helper: Mark current character as completed
+local function MarkCharacterCompleted(charKey)
+    if IsCharacterCompleted(charKey) then return end -- Already marked
+
+    local newValue
+    if COMPLETED_CHARACTERS == "" then
+        newValue = charKey
+    else
+        newValue = COMPLETED_CHARACTERS .. "," .. charKey
+    end
+
+    Config.Set("CompletedCharacters", newValue)
+    yield("/echo [CosmicLeveling] Character " .. charKey .. " marked as COMPLETED")
+end
 
 -- Debug helper
 local function DebugLog(msg)
     if DEBUG then
         yield("/echo [CosmicLeveling] [DEBUG] " .. msg)
+    end
+end
+
+-- Ice control helpers (respects USE_ICE flag)
+local function StartIce()
+    if USE_ICE then
+        yield("/echo [CosmicLeveling] Starting Ice...")
+        yield("/ice start")
+    end
+end
+
+local function StopIce()
+    if USE_ICE then
+        yield("/echo [CosmicLeveling] Stopping Ice...")
+        yield("/ice stop")
     end
 end
 
@@ -176,6 +294,39 @@ local function FindJobBehindBreakpoint(jobList, referenceLevel)
     return behindJob, targetBP
 end
 
+-- Helper: Check if all jobs in a list are at level 100
+local function AllJobsAtMax(jobList)
+    for _, job in ipairs(jobList) do
+        local jobData = Player.GetJob(job.id)
+        if jobData and jobData.Level then
+            if jobData.Level < 100 then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+-- Helper: Find the lowest level job in a list (for switching categories)
+local function FindLowestLevelJob(jobList)
+    local lowestJob = nil
+    local lowestLevel = 101
+
+    for _, job in ipairs(jobList) do
+        local jobData = Player.GetJob(job.id)
+        if jobData and jobData.Level then
+            local level = jobData.Level
+            if level < lowestLevel then
+                lowestLevel = level
+                lowestJob = job
+                lowestJob.level = level
+            end
+        end
+    end
+
+    return lowestJob
+end
+
 -- Helper: Find lowest level job below a specific breakpoint
 local function FindLowestJobBelowBreakpoint(jobList, breakpoint)
     local lowestJob = nil
@@ -197,16 +348,16 @@ local function FindLowestJobBelowBreakpoint(jobList, breakpoint)
 end
 
 -- Helper: Switch to a job using gearset and equip recommended gear
-local function SwitchToJob(jobId)
+-- restartIce: if false, Ice will NOT be restarted after switching (default: true)
+local function SwitchToJob(jobId, restartIce)
+    if restartIce == nil then restartIce = true end
+
     for idx = 1, 100 do
         local gs = Player.GetGearset(idx)
         if gs and gs.ClassJob == jobId then
-            -- Stop Ice before switching (if enabled)
-            if USE_ICE then
-                yield("/echo [CosmicLeveling] Stopping Ice...")
-                yield("/ice stop")
-                yield("/wait 1")
-            end
+            -- Stop Ice before switching
+            StopIce()
+            yield("/wait 1")
 
             -- Switch gearset
             yield("/echo [CosmicLeveling] Switching to gearset: " .. gs.Name)
@@ -218,10 +369,9 @@ local function SwitchToJob(jobId)
             yield("/ad equiprec")
             yield("/wait 2")
 
-            -- Restart Ice (if enabled)
-            if USE_ICE then
-                yield("/echo [CosmicLeveling] Starting Ice...")
-                yield("/ice start")
+            -- Restart Ice if requested
+            if restartIce then
+                StartIce()
             end
 
             return true
@@ -230,15 +380,93 @@ local function SwitchToJob(jobId)
     return false
 end
 
+-- Helper: Process a category and return status
+-- Returns: "switched" if switched to a job, "complete" if all at 100, "continue" if should keep leveling
+local function ProcessCategory(jobList, categoryName, currentLevel)
+    -- First check if all jobs in this category are at 100
+    if AllJobsAtMax(jobList) then
+        yield("/echo [CosmicLeveling] All " .. categoryName .. "s are at level 100!")
+        return "complete"
+    end
+
+    -- MODE: STRICT - Only check when hitting exact breakpoint
+    if not CATCHUP_MODE then
+        local isAtBP, exactBP = IsAtExactBreakpoint(currentLevel)
+
+        if not isAtBP then
+            local nextBP = GetNextBreakpoint(currentLevel)
+            yield("/echo [CosmicLeveling] [Strict] Not at a breakpoint. Continue leveling to " .. nextBP .. "!")
+            return "continue"
+        end
+
+        yield("/echo [CosmicLeveling] [Strict] Hit breakpoint " .. exactBP .. "! Checking other " .. categoryName .. " jobs...")
+
+        local nextJob = FindLowestJobBelowBreakpoint(jobList, exactBP)
+
+        if nextJob then
+            yield("/echo [CosmicLeveling] Found: " .. nextJob.abbr .. " at Lv." .. nextJob.level .. " (needs to reach " .. exactBP .. ")")
+            if SwitchToJob(nextJob.id) then
+                yield("/echo [CosmicLeveling] Switched to " .. nextJob.abbr .. "! Level to " .. exactBP)
+                return "switched"
+            else
+                yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. nextJob.abbr)
+                return "continue"
+            end
+        else
+            local nextBP = GetNextBreakpoint(currentLevel)
+            yield("/echo [CosmicLeveling] All " .. categoryName .. "s at " .. exactBP .. "+! Continue to next breakpoint: " .. nextBP)
+            return "continue"
+        end
+
+    -- MODE: CATCH-UP - Always check all jobs for compliance
+    else
+        yield("/echo [CosmicLeveling] [Catch-up] Checking all " .. categoryName .. " jobs for breakpoint compliance...")
+
+        local behindJob, targetBP = FindJobBehindBreakpoint(jobList, currentLevel)
+
+        if behindJob then
+            yield("/echo [CosmicLeveling] Found: " .. behindJob.abbr .. " at Lv." .. behindJob.level .. " (behind breakpoint " .. targetBP .. ")")
+            if SwitchToJob(behindJob.id) then
+                yield("/echo [CosmicLeveling] Switched to " .. behindJob.abbr .. "! Level to " .. targetBP)
+                return "switched"
+            else
+                yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. behindJob.abbr)
+                return "continue"
+            end
+        else
+            local nextBP = GetNextBreakpoint(currentLevel)
+            yield("/echo [CosmicLeveling] All " .. categoryName .. "s compliant with current progress!")
+            yield("/echo [CosmicLeveling] Continue leveling to next breakpoint: " .. nextBP)
+            return "continue"
+        end
+    end
+end
+
 -- Main Logic
 yield("/echo [CosmicLeveling] === Cosmic Exploration Auto-Leveling ===")
 yield("/echo [CosmicLeveling] Mode: " .. (CATCHUP_MODE and "Catch-up" or "Strict"))
 yield("/echo [CosmicLeveling] Breakpoints: " .. table.concat(BREAKPOINTS, ", "))
 
+-- Check player availability
+if not Player.Available then
+    yield("/echo [CosmicLeveling] ERROR: Player not available")
+    return
+end
+
 -- Get current job info
 local lp = Svc.ClientState.LocalPlayer
 if not lp then
-    yield("/echo [CosmicLeveling] ERROR: Player not available")
+    yield("/echo [CosmicLeveling] ERROR: LocalPlayer not available")
+    return
+end
+
+-- Check if character is already marked as completed
+local charKey = GetCharacterKey()
+DebugLog("Character key: " .. tostring(charKey))
+if charKey and IsCharacterCompleted(charKey) then
+    yield("/echo [CosmicLeveling] Character " .. charKey .. " already completed all jobs!")
+    yield("/echo [CosmicLeveling] Skipping - nothing to do.")
+    yield("/echo [CosmicLeveling] === Done ===")
     return
 end
 
@@ -255,50 +483,61 @@ if currentCategory == "Other" then
 end
 
 local jobList = IsCrafter(currentJobId) and CrafterJobs or GathererJobs
+local otherJobList = IsCrafter(currentJobId) and GathererJobs or CrafterJobs
+local otherCategoryName = IsCrafter(currentJobId) and "Gatherer" or "Crafter"
 
--- MODE: STRICT - Only check when hitting exact breakpoint
-if not CATCHUP_MODE then
-    local isAtBP, exactBP = IsAtExactBreakpoint(currentLevel)
+-- Process current category
+local result = ProcessCategory(jobList, currentCategory, currentLevel)
 
-    if not isAtBP then
-        local nextBP = GetNextBreakpoint(currentLevel)
-        yield("/echo [CosmicLeveling] [Strict] Not at a breakpoint. Continue leveling to " .. nextBP .. "!")
+-- If result is "continue", we stay on current job - make sure Ice is running
+if result == "continue" then
+    StartIce()
+end
+
+-- If current category is complete (all at 100), check the other category
+if result == "complete" then
+    yield("/echo [CosmicLeveling] Checking " .. otherCategoryName .. " category...")
+
+    -- Check if other category is also complete
+    if AllJobsAtMax(otherJobList) then
+        yield("/echo [CosmicLeveling] *** ALL JOBS COMPLETE! ***")
+        yield("/echo [CosmicLeveling] Both Crafters and Gatherers are at level 100!")
+        MarkCharacterCompleted(charKey)
+        StopIce()
+        yield("/echo [CosmicLeveling] === Done ===")
         return
     end
 
-    yield("/echo [CosmicLeveling] [Strict] Hit breakpoint " .. exactBP .. "! Checking other " .. currentCategory .. " jobs...")
+    -- Find a job in the other category to switch to
+    local otherJob = FindLowestLevelJob(otherJobList)
+    if otherJob then
+        yield("/echo [CosmicLeveling] Switching to " .. otherCategoryName .. ": " .. otherJob.abbr .. " at Lv." .. otherJob.level)
+        -- Switch but don't restart Ice yet - we need to run the check again
+        if SwitchToJob(otherJob.id, false) then
+            yield("/echo [CosmicLeveling] Switched to " .. otherJob.abbr .. "!")
 
-    local nextJob = FindLowestJobBelowBreakpoint(jobList, exactBP)
+            -- Now process the new category
+            yield("/echo [CosmicLeveling] Processing " .. otherCategoryName .. " category...")
 
-    if nextJob then
-        yield("/echo [CosmicLeveling] Found: " .. nextJob.abbr .. " at Lv." .. nextJob.level .. " (needs to reach " .. exactBP .. ")")
-        if SwitchToJob(nextJob.id) then
-            yield("/echo [CosmicLeveling] Switched to " .. nextJob.abbr .. "! Level to " .. exactBP)
+            -- Get fresh level after switch
+            lp = Svc.ClientState.LocalPlayer
+            local newLevel = lp.Level
+
+            local otherResult = ProcessCategory(otherJobList, otherCategoryName, newLevel)
+
+            if otherResult == "complete" then
+                -- This means BOTH categories are complete (we already checked current was complete)
+                yield("/echo [CosmicLeveling] *** ALL JOBS COMPLETE! ***")
+                yield("/echo [CosmicLeveling] Both Crafters and Gatherers are at level 100!")
+                MarkCharacterCompleted(charKey)
+                -- Ice already stopped from SwitchToJob, keep it stopped
+            else
+                -- Other category needs work, start Ice
+                StartIce()
+            end
         else
-            yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. nextJob.abbr)
+            yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. otherJob.abbr)
         end
-    else
-        local nextBP = GetNextBreakpoint(currentLevel)
-        yield("/echo [CosmicLeveling] All " .. currentCategory .. "s at " .. exactBP .. "+! Continue to next breakpoint: " .. nextBP)
-    end
-
--- MODE: CATCH-UP - Always check all jobs for compliance
-else
-    yield("/echo [CosmicLeveling] [Catch-up] Checking all " .. currentCategory .. " jobs for breakpoint compliance...")
-
-    local behindJob, targetBP = FindJobBehindBreakpoint(jobList, currentLevel)
-
-    if behindJob then
-        yield("/echo [CosmicLeveling] Found: " .. behindJob.abbr .. " at Lv." .. behindJob.level .. " (behind breakpoint " .. targetBP .. ")")
-        if SwitchToJob(behindJob.id) then
-            yield("/echo [CosmicLeveling] Switched to " .. behindJob.abbr .. "! Level to " .. targetBP)
-        else
-            yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. behindJob.abbr)
-        end
-    else
-        local nextBP = GetNextBreakpoint(currentLevel)
-        yield("/echo [CosmicLeveling] All " .. currentCategory .. "s compliant with current progress!")
-        yield("/echo [CosmicLeveling] Continue leveling to next breakpoint: " .. nextBP)
     end
 end
 

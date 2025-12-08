@@ -15,6 +15,45 @@ This includes:
 
 The skills are our living documentation - keep them accurate!
 
+### Rule #2: Update Documentation Before Push
+**Whenever you change functionality in a script, you MUST update the script's documentation (the comment block at the top) before pushing to SND.**
+
+This includes:
+- Version number bump (MAJOR.MINOR.PATCH)
+- Description updates if behavior changed
+- HOW IT WORKS section if flow changed
+- Any new features or changed behavior documented
+
+Never push functional changes without updating the docs first!
+
+### Rule #3: Generate Discord Questions for Unknown Issues
+**When debugging fails repeatedly and you identify something you don't know about the SND API, generate a copy/paste ready question for Discord.**
+
+Format the question like this:
+```
+📋 **SND API Question**
+
+**What I'm trying to do:**
+[Brief description]
+
+**Code that's failing:**
+```lua
+[relevant code snippet]
+```
+
+**Error message:**
+[exact error if available]
+
+**What I've tried:**
+- [attempt 1]
+- [attempt 2]
+
+**Question:**
+[Specific question about the API]
+```
+
+This helps get accurate answers from the SND community when documentation is unclear.
+
 ---
 
 ## Skills Documentation

@@ -50,6 +50,7 @@ yield("/ice start")
 
 When using Ice, you typically also need:
 - **AutoDuty** - For `/ad equiprec` (equip recommended gear)
+- **ICE** - The internal plugin name is `ICE` (all caps) for plugin_dependencies
 
 ## Example: Job Switch with Ice
 

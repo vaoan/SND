@@ -583,10 +583,34 @@ end
 ### Character Info Helpers
 
 ```lua
---- Get character name from Entity system
+--- Get character name from LocalPlayer
+-- IMPORTANT: Use :ToString() method, NOT tostring() or .TextValue
+-- tostring() gives weird output with extra IDs like "Name: 12345@World: -67890"
 -- @return string|nil - Character name or nil
 function GetCharacterName()
-    return Entity and Entity.Player and Entity.Player.Name
+    local lp = Svc and Svc.ClientState and Svc.ClientState.LocalPlayer
+    if not lp then return nil end
+    return lp.Name:ToString()
+end
+
+--- Get character home world name
+-- IMPORTANT: Use :ToString() method for clean output
+-- @return string|nil - World name or nil
+function GetCharacterWorld()
+    local lp = Svc and Svc.ClientState and Svc.ClientState.LocalPlayer
+    if not lp then return nil end
+    return lp.HomeWorld.Value.Name:ToString()
+end
+
+--- Get character unique key (Name@World)
+-- Useful for persisting per-character data
+-- @return string|nil - "CharacterName@WorldName" or nil
+function GetCharacterKey()
+    local lp = Svc and Svc.ClientState and Svc.ClientState.LocalPlayer
+    if not lp then return nil end
+    local name = lp.Name:ToString()
+    local world = lp.HomeWorld.Value.Name:ToString()
+    return name .. "@" .. world
 end
 
 --- Get character position from ClientState
@@ -610,6 +634,27 @@ function GetCharacterLevel()
     return lp and lp.Level or 0
 end
 ```
+
+### IMPORTANT: String Conversion Gotcha
+
+When accessing string properties from game objects (like `Name`, `World`, etc.):
+
+```lua
+-- WRONG: tostring() gives weird output with extra metadata
+local name = tostring(lp.Name)  -- Returns "Name: 12345@World: -67890"
+
+-- WRONG: .TextValue may not exist or return nil
+local name = lp.Name.TextValue  -- May error or return nil
+
+-- CORRECT: Use :ToString() method
+local name = lp.Name:ToString()  -- Returns "Character Name"
+```
+
+This applies to most game string objects like:
+- `lp.Name:ToString()`
+- `lp.HomeWorld.Value.Name:ToString()`
+- `lp.ClassJob.Value.Name:ToString()`
+- `lp.ClassJob.Value.Abbreviation:ToString()`
 
 ## Excel Data Access
 
