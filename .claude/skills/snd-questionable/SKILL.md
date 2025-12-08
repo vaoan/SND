@@ -138,9 +138,20 @@ end
 
 ## Notes
 
-- Quest IDs are strings, not numbers
+- Quest IDs are strings (e.g., "67631"), not numbers
 - Always check `HasPlugin("Questionable")` before using IPC methods
-- `IsQuestComplete()` is useful for checking prerequisites
 - Priority system allows you to queue up quests to complete in order
 - Does NOT handle: dungeons, single-player duties, combat
 - Requires: vnavmesh, TextAdvance, Lifestream plugins
+
+## IMPORTANT: IPC Limitations
+
+**The Questionable IPC does NOT check the game's actual quest completion status!**
+
+The `IsQuestComplete()`, `IsQuestLocked()`, etc. methods check Questionable's **internal tracking**, not the game's quest journal. For example:
+- A quest you completed manually in-game may show `IsQuestComplete() = false`
+- A quest may show `IsQuestLocked() = true` even if you've done it
+
+This means you **cannot use Questionable IPC to reliably check if a player has completed a quest in the game**. It only tracks quests that Questionable itself has processed.
+
+If you need to check actual game quest completion, there is currently no reliable way to do this from SND - the game's QuestManager is not exposed via `Svc`.

@@ -260,39 +260,13 @@ end
 -- Get max level from config
 local MAX_LEVEL = tonumber(Config.Get("MaxLevel")) or 100
 
--- Quest ID for "Inscrutable Tastes" - required at level 50 for collectables
-local INSCRUTABLE_TASTES_QUEST_ID = "67631"
-
--- Check if the Inscrutable Tastes quest is complete
-local function IsInscrutableTastesComplete()
-    -- Try using Questionable IPC if available
-    if IPC and IPC.Questionable and IPC.Questionable.IsQuestComplete then
-        local success, result = pcall(function()
-            return IPC.Questionable.IsQuestComplete(INSCRUTABLE_TASTES_QUEST_ID)
-        end)
-        if success then
-            return result
-        end
-    end
-    -- Can't check - return nil (unknown)
-    return nil
-end
-
 -- Special handler for level 50 breakpoint
 -- Called when a job reaches level 50 - warns user to do the collectable quest
 -- This is NOT blocking - the script will continue, but the user should manually
 -- stop and complete the quest soon or leveling will get stuck.
+-- NOTE: We can't reliably check if the quest is already done (Questionable IPC
+-- only tracks its internal state, not the game's actual quest completion).
 local function OnLevel50Reached(jobAbbr, jobName)
-    -- Check if quest is already complete
-    local questComplete = IsInscrutableTastesComplete()
-
-    if questComplete == true then
-        -- Quest already done, no warning needed
-        DebugLog("Inscrutable Tastes quest already complete - no warning needed")
-        return
-    end
-
-    -- Quest not done or can't check - show warning
     yield("/echo [CosmicLeveling] !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     yield("/echo [CosmicLeveling] WARNING: " .. jobName .. " (" .. jobAbbr .. ") has reached level 50!")
     yield("/echo [CosmicLeveling] Please complete the quest: INSCRUTABLE TASTES")
