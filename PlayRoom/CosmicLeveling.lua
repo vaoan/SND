@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Heiner'
-version: 2.4.1
+version: 2.5.0
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters
 plugin_dependencies:
 - AutoDuty
@@ -16,30 +16,13 @@ configs:
   CatchupMode:
     description: true = always check all jobs for compliance. false = only check at exact breakpoints
     default: true
-  Breakpoint1:
-    description: First breakpoint level
-    default: 50
-    min: 1
-    max: 100
-  Breakpoint2:
-    description: Second breakpoint level
-    default: 63
-    min: 1
-    max: 100
-  Breakpoint3:
-    description: Third breakpoint level
-    default: 71
-    min: 1
-    max: 100
-  Breakpoint4:
-    description: Fourth breakpoint level
-    default: 81
-    min: 1
-    max: 100
-  Breakpoint5:
-    description: Fifth breakpoint level
-    default: 91
-    min: 1
+  Breakpoints:
+    description: Comma-separated breakpoint levels (e.g., "63,71,81,91"). Level 50 is ALWAYS included automatically because each job has a required quest at level 50 that must be completed manually before continuing.
+    default: "63,71,81,91"
+  MaxLevel:
+    description: Target level cap for all jobs (default 100)
+    default: 100
+    min: 50
     max: 100
   CompletedCharacters:
     description: Comma-separated list of completed characters (Name@Server format). Auto-populated when a character finishes all jobs.
@@ -50,7 +33,7 @@ configs:
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.4.1
+                                  Version 2.5.0
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -60,36 +43,52 @@ switching jobs at configurable breakpoints.
 HOW IT WORKS:
 -------------
 1. On start, checks if current character is already marked as "completed"
-   (all jobs at 100). If so, skips entirely and exits (does nothing).
+   (all jobs at MaxLevel). If so, skips entirely and exits (does nothing).
 
-2. Checks all jobs in current category (Crafter or Gatherer) against breakpoints.
-   If any job needs leveling, ensures Ice is started.
+2. Stops Ice, then checks all jobs in current category (Crafter or Gatherer)
+   against breakpoints.
 
 3. Two modes available:
    - CATCH-UP MODE (default): Always checks if any job is behind any breakpoint
      that the current job has passed. Switches to the lowest level job that
      needs to catch up.
-   - STRICT MODE: Only checks when you hit an exact breakpoint level (50, 63, etc).
+   - STRICT MODE: Only checks when you hit an exact breakpoint level.
      Switches to jobs that haven't reached that specific breakpoint yet.
 
-4. When all jobs in current category reach 100, automatically switches to the
-   other category (Crafter <-> Gatherer) and continues the process.
+4. When switching jobs:
+   - Stops Ice (multiple times to ensure it registers)
+   - Waits for any ongoing craft or duty (Mech Ops, etc.) to complete
+   - Switches gearset and equips recommended gear
+   - Restarts Ice
 
-5. When ALL jobs (both categories) reach 100:
+5. When all jobs in current category reach MaxLevel, automatically switches to
+   the other category (Crafter <-> Gatherer) and continues the process.
+
+6. When ALL jobs (both categories) reach MaxLevel:
    - Marks the character as "completed" in config (persisted)
    - Stops Ice
    - Future runs will skip entirely (no Ice start/stop, just exits)
 
 BREAKPOINTS:
 ------------
-Default breakpoints: 50, 63, 71, 81, 91
-These represent levels where you should rotate to let other jobs catch up.
-Customize via config settings.
+Configure via the "Breakpoints" setting as a comma-separated list.
+Default: "63,71,81,91"
+
+IMPORTANT: Level 50 is ALWAYS included automatically and cannot be removed.
+This is because each DoH/DoL job requires the quest "INSCRUTABLE TASTES" at
+level 50 to unlock collectables. Without this quest, leveling will get stuck.
+The script will display a warning when switching to a job that needs to reach 50.
+
+MAX LEVEL:
+----------
+Configure the target level cap via "MaxLevel" setting (default: 100).
+Set to a lower value (e.g., 90) if you want to stop leveling earlier.
 
 EXAMPLE FLOW (Catch-up Mode):
 -----------------------------
 - You're on CRP Lv.63, but BSM is Lv.45
 - Script detects BSM is behind the 50 breakpoint
+- Waits for current craft to finish
 - Switches to BSM, equips recommended gear, starts Ice
 - Next run: BSM is now 52, all crafters at 50+, continue leveling
 
@@ -98,6 +97,14 @@ COMPLETED CHARACTERS:
 When a character finishes all jobs, they're saved to CompletedCharacters config
 as "CharacterName@ServerName". On future runs, the script recognizes them and
 skips entirely (does nothing).
+
+JOB SWITCHING:
+--------------
+The script handles various blocking conditions:
+- Waits for crafting to complete before switching
+- Waits for duties (Mech Ops, etc.) to complete
+- Retries up to 60 times if switch fails
+- Uses correct gearset slot (API index + 1 for UI slot)
 
 REQUIREMENTS:
 -------------
@@ -250,15 +257,46 @@ local function StopIce()
     end
 end
 
--- Get breakpoints from config (sorted ascending)
-local BREAKPOINTS = {
-    tonumber(Config.Get("Breakpoint1")) or 50,
-    tonumber(Config.Get("Breakpoint2")) or 63,
-    tonumber(Config.Get("Breakpoint3")) or 71,
-    tonumber(Config.Get("Breakpoint4")) or 81,
-    tonumber(Config.Get("Breakpoint5")) or 91,
-}
-table.sort(BREAKPOINTS)
+-- Get max level from config
+local MAX_LEVEL = tonumber(Config.Get("MaxLevel")) or 100
+
+-- Special handler for level 50 breakpoint
+-- Called when a job reaches level 50 - warns user to do the collectable quest
+-- This is NOT blocking - the script will continue, but the user should manually
+-- stop and complete the quest soon or leveling will get stuck.
+local function OnLevel50Reached(jobAbbr, jobName)
+    yield("/echo [CosmicLeveling] !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    yield("/echo [CosmicLeveling] WARNING: " .. jobName .. " (" .. jobAbbr .. ") has reached level 50!")
+    yield("/echo [CosmicLeveling] Please complete the quest: INSCRUTABLE TASTES")
+    yield("/echo [CosmicLeveling] Leveling will get STUCK if you don't do this quest!")
+    yield("/echo [CosmicLeveling] !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+end
+
+-- Parse breakpoints from comma-separated string
+local function ParseBreakpoints(str)
+    local breakpoints = {}
+    local hasLevel50 = false
+
+    for num in string.gmatch(str, "([^,]+)") do
+        local level = tonumber(num:match("^%s*(.-)%s*$"))  -- Trim whitespace
+        if level and level >= 1 and level <= MAX_LEVEL then
+            table.insert(breakpoints, level)
+            if level == 50 then hasLevel50 = true end
+        end
+    end
+
+    -- Ensure level 50 is always present (required for job quest)
+    if not hasLevel50 then
+        table.insert(breakpoints, 50)
+    end
+
+    table.sort(breakpoints)
+    return breakpoints
+end
+
+-- Get breakpoints from config (sorted ascending, level 50 always included)
+local breakpointsStr = Config.Get("Breakpoints") or "63,71,81,91"
+local BREAKPOINTS = ParseBreakpoints(breakpointsStr)
 
 -- Helper: Check if job ID is a crafter
 local function IsCrafter(jobId)
@@ -296,7 +334,7 @@ local function GetNextBreakpoint(level)
             return bp
         end
     end
-    return 100  -- Max level if past all breakpoints
+    return MAX_LEVEL  -- Max level if past all breakpoints
 end
 
 -- Helper: Check if level is exactly at a breakpoint
@@ -349,12 +387,12 @@ local function FindJobBehindBreakpoint(jobList, referenceLevel)
     return behindJob, targetBP
 end
 
--- Helper: Check if all jobs in a list are at level 100
+-- Helper: Check if all jobs in a list are at max level
 local function AllJobsAtMax(jobList)
     for _, job in ipairs(jobList) do
         local jobData = Player.GetJob(job.id)
         if jobData and jobData.Level then
-            if jobData.Level < 100 then
+            if jobData.Level < MAX_LEVEL then
                 return false
             end
         end
@@ -501,7 +539,7 @@ end
 local function ProcessCategory(jobList, categoryName, currentLevel)
     -- First check if all jobs in this category are at 100
     if AllJobsAtMax(jobList) then
-        yield("/echo [CosmicLeveling] All " .. categoryName .. "s are at level 100!")
+        yield("/echo [CosmicLeveling] All " .. categoryName .. "s are at level " .. MAX_LEVEL .. "!")
         return "complete"
     end
 
@@ -523,6 +561,10 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
             yield("/echo [CosmicLeveling] Found: " .. nextJob.abbr .. " at Lv." .. nextJob.level .. " (needs to reach " .. exactBP .. ")")
             if SwitchToJob(nextJob.id) then
                 yield("/echo [CosmicLeveling] Switched to " .. nextJob.abbr .. "! Level to " .. exactBP)
+                -- Warn user if leveling to 50 (collectable quest required)
+                if exactBP == 50 then
+                    OnLevel50Reached(nextJob.abbr, nextJob.name)
+                end
                 return "switched"
             else
                 yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. nextJob.abbr)
@@ -544,6 +586,10 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
             yield("/echo [CosmicLeveling] Found: " .. behindJob.abbr .. " at Lv." .. behindJob.level .. " (behind breakpoint " .. targetBP .. ")")
             if SwitchToJob(behindJob.id) then
                 yield("/echo [CosmicLeveling] Switched to " .. behindJob.abbr .. "! Level to " .. targetBP)
+                -- Warn user if leveling to 50 (collectable quest required)
+                if targetBP == 50 then
+                    OnLevel50Reached(behindJob.abbr, behindJob.name)
+                end
                 return "switched"
             else
                 yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. behindJob.abbr)
@@ -593,7 +639,7 @@ if USE_ICE then
 end
 
 yield("/echo [CosmicLeveling] Mode: " .. (CATCHUP_MODE and "Catch-up" or "Strict"))
-yield("/echo [CosmicLeveling] Breakpoints: " .. table.concat(BREAKPOINTS, ", "))
+yield("/echo [CosmicLeveling] Breakpoints: " .. table.concat(BREAKPOINTS, ", ") .. " | Max: " .. MAX_LEVEL)
 
 local currentJobId = lp.ClassJob.RowId
 local currentLevel = lp.Level
@@ -626,7 +672,7 @@ if result == "complete" then
     -- Check if other category is also complete
     if AllJobsAtMax(otherJobList) then
         yield("/echo [CosmicLeveling] *** ALL JOBS COMPLETE! ***")
-        yield("/echo [CosmicLeveling] Both Crafters and Gatherers are at level 100!")
+        yield("/echo [CosmicLeveling] Both Crafters and Gatherers are at level " .. MAX_LEVEL .. "!")
         MarkCharacterCompleted(charKey)
         StopIce()
         yield("/echo [CosmicLeveling] === Done ===")
@@ -653,7 +699,7 @@ if result == "complete" then
             if otherResult == "complete" then
                 -- This means BOTH categories are complete (we already checked current was complete)
                 yield("/echo [CosmicLeveling] *** ALL JOBS COMPLETE! ***")
-                yield("/echo [CosmicLeveling] Both Crafters and Gatherers are at level 100!")
+                yield("/echo [CosmicLeveling] Both Crafters and Gatherers are at level " .. MAX_LEVEL .. "!")
                 MarkCharacterCompleted(charKey)
                 -- Ice already stopped from SwitchToJob, keep it stopped
             else
