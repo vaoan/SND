@@ -2,6 +2,21 @@
 
 This project contains SND (Something Need Doing) Lua macros for FFXIV automation using Dalamud plugins.
 
+## Development Rules
+
+### Rule #1: Update Skills on Discovery
+**Whenever we discover something new about the SND API, fix a bug, or learn the correct way to do something, IMMEDIATELY update the relevant skill documentation in `.claude/skills/`.**
+
+This includes:
+- API corrections (e.g., `Player.Level` returns nil, use `Svc.ClientState.LocalPlayer.Level`)
+- New patterns that work
+- Gotchas and pitfalls to avoid
+- Working code examples from testing
+
+The skills are our living documentation - keep them accurate!
+
+---
+
 ## Skills Documentation
 
 Detailed documentation is organized into modular skills in `.claude/skills/`:

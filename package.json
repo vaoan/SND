@@ -1,16 +1,17 @@
 {
-  "name": "project",
+  "name": "snd-sync",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Two-way sync for SND Lua macros",
+  "main": "sync.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "pull": "node sync.js pull",
+    "push": "node sync.js push",
+    "status": "node sync.js status"
   },
-  "keywords": [],
+  "keywords": ["snd", "ffxiv", "lua", "sync"],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^17.2.3",
-    "project": "file:"
+    "dotenv": "^17.2.3"
   }
 }

@@ -128,23 +128,44 @@ end
 
 ## Player API
 
+### IMPORTANT: Player vs Svc.ClientState.LocalPlayer
+
+There are TWO ways to access player data, and they return DIFFERENT things:
+
+1. **`Player.*`** - SND wrapper object (some properties return nil or wrapper objects)
+2. **`Svc.ClientState.LocalPlayer`** - Direct Dalamud access (more reliable for level/job)
+
+```lua
+-- WRONG: These may return nil or wrapper objects
+local level = Player.Level           -- Returns nil!
+local job = Player.Job               -- Returns wrapper object, not ID!
+
+-- CORRECT: Use Svc.ClientState.LocalPlayer for level and job info
+local lp = Svc.ClientState.LocalPlayer
+if lp then
+    local currentLevel = lp.Level              -- Returns actual level number
+    local currentJobId = lp.ClassJob.RowId     -- Returns job ID number
+end
+```
+
 ### Player Availability and Basic Info
 ```lua
--- Check if player is available
+-- Check if player is available (Player wrapper)
 if Player.Available then
     -- Player is available for operations
 end
 
--- Check if player is busy
+-- Check if player is busy (Player wrapper)
 if Player.IsBusy then
     -- Player is busy with something
 end
 
--- Get player name
+-- Get player name (Player wrapper)
 local playerName = Player.Name
 
--- Get player level
-local level = Player.Level
+-- Get player level - USE LocalPlayer!
+local lp = Svc.ClientState.LocalPlayer
+local level = lp and lp.Level or 0
 ```
 
 ### Player Position
@@ -161,15 +182,72 @@ yield("/echo [Script] Position: " .. pos.X .. ", " .. pos.Y .. ", " .. pos.Z)
 
 ### Player Job/Class
 ```lua
--- Get current job information
-local jobId = Player.ClassJob.Id
-local jobName = Player.ClassJob.Name
+-- CORRECT: Get current job information via LocalPlayer
+local lp = Svc.ClientState.LocalPlayer
+if lp then
+    local jobId = lp.ClassJob.RowId
+    local jobAbbr = lp.ClassJob.Value.Abbreviation:ToString()
+    local jobName = lp.ClassJob.Value.Name:ToString()
+
+    yield("/echo [Script] Current job: " .. jobAbbr .. " (ID: " .. jobId .. ") Lv." .. lp.Level)
+end
 
 -- Example: Check if on specific job
-if Player.ClassJob.Id == 14 then -- Carpenter
+local lp = Svc.ClientState.LocalPlayer
+if lp and lp.ClassJob.RowId == 14 then -- Carpenter
     yield("/echo [Script] Currently on Carpenter")
 end
 ```
+
+### Gearsets (for listing saved gearsets)
+```lua
+-- Get gearset info
+local gs = Player.GetGearset(1)  -- Gearset slot 1-100
+if gs and gs.ClassJob and gs.ClassJob > 0 then
+    local jobId = gs.ClassJob
+    local gearsetName = gs.Name
+    local itemLevel = gs.ItemLevel  -- ITEM LEVEL of the gear, NOT character job level!
+end
+
+-- Iterate all gearsets to find which jobs have gearsets
+for idx = 1, 100 do
+    local gs = Player.GetGearset(idx)
+    if gs and gs.ClassJob and gs.ClassJob > 0 and gs.Name and gs.Name ~= "" then
+        yield("/echo Job ID: " .. gs.ClassJob .. " Gearset: " .. gs.Name .. " iLvl: " .. gs.ItemLevel)
+    end
+end
+```
+
+**WARNING:** `gs.ItemLevel` is the average item level of the GEAR in that gearset, NOT the character's level in that job!
+
+### Getting Job Levels
+
+Use `Player.GetJob(jobId).Level` to get the level for ANY job:
+
+```lua
+-- Get level for a specific job by ID
+local level = Player.GetJob(15).Level  -- e.g., 88 for Machinist (ID 15)
+
+-- Get all job levels
+local classJobSheet = Excel.GetSheet("ClassJob")
+for jobId = 1, 42 do
+    local job = Player.GetJob(jobId)
+    if job and job.Level and job.Level > 0 then
+        local jobRow = classJobSheet:GetRow(jobId)
+        local abbr = jobRow and tostring(jobRow.Abbreviation) or "?"
+        yield("/echo " .. abbr .. ": Lv." .. tostring(job.Level))
+    end
+end
+```
+
+**Working approaches:**
+- `Player.GetJob(jobId).Level` → Returns level for any job ✓
+- `Svc.ClientState.LocalPlayer.Level` → Current job level only ✓
+
+**Non-working approaches:**
+- `Player.Level` → nil
+- `Player.GetLevel(x)` → nil (method doesn't exist)
+- `Player.ClassJob` → nil
 
 ### Player Status Effects
 ```lua
@@ -455,7 +533,15 @@ end
 --- Get current job ID
 -- @return number|nil - Job ID or nil
 function GetCharacterJob()
-    return Player and Player.Job or nil
+    local lp = Svc and Svc.ClientState and Svc.ClientState.LocalPlayer
+    return lp and lp.ClassJob and lp.ClassJob.RowId or nil
+end
+
+--- Get current job level
+-- @return number - Current job level or 0
+function GetCharacterLevel()
+    local lp = Svc and Svc.ClientState and Svc.ClientState.LocalPlayer
+    return lp and lp.Level or 0
 end
 ```
 
