@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Heiner'
-version: 2.1.1
+version: 2.4.1
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters
 plugin_dependencies:
 - AutoDuty
@@ -50,7 +50,7 @@ configs:
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.1.1
+                                  Version 2.4.1
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -180,6 +180,54 @@ local function DebugLog(msg)
     end
 end
 
+-- Character conditions we need
+local CharacterCondition = {
+    crafting = 5,
+    occupied = 25,
+    occupiedInEvent = 31,
+    occupiedInQuestEvent = 32,
+    boundByDuty34 = 34,
+    executingCraftingSkill = 40,
+    boundByDuty56 = 56,
+    boundByDuty95 = 95,
+}
+
+-- Check if currently crafting
+local function IsCrafting()
+    return Svc.Condition[CharacterCondition.crafting] or
+           Svc.Condition[CharacterCondition.executingCraftingSkill]
+end
+
+-- Check if in a duty/event that blocks job switching (like Mech Ops)
+local function IsBoundByDutyOrEvent()
+    return Svc.Condition[CharacterCondition.occupied] or
+           Svc.Condition[CharacterCondition.occupiedInEvent] or
+           Svc.Condition[CharacterCondition.occupiedInQuestEvent] or
+           Svc.Condition[CharacterCondition.boundByDuty34] or
+           Svc.Condition[CharacterCondition.boundByDuty56] or
+           Svc.Condition[CharacterCondition.boundByDuty95]
+end
+
+-- Check if anything is blocking job switch
+local function IsBlockedFromSwitching()
+    return IsCrafting() or IsBoundByDutyOrEvent()
+end
+
+-- Wait for blocking conditions to clear (with timeout)
+local function WaitUntilCanSwitch(maxWaitSeconds)
+    maxWaitSeconds = maxWaitSeconds or 120
+    local startTime = os.clock()
+
+    while IsBlockedFromSwitching() do
+        if os.clock() - startTime > maxWaitSeconds then
+            yield("/echo [CosmicLeveling] WARNING: Timeout waiting to be able to switch jobs")
+            return false
+        end
+        yield("/wait 1")
+    end
+    return true
+end
+
 -- Ice control helpers (respects USE_ICE flag)
 local function StartIce()
     if USE_ICE then
@@ -188,10 +236,17 @@ local function StartIce()
     end
 end
 
+-- Aggressively stop Ice and wait for it to actually stop
 local function StopIce()
     if USE_ICE then
         yield("/echo [CosmicLeveling] Stopping Ice...")
+        -- Issue stop command multiple times to ensure it registers
         yield("/ice stop")
+        yield("/wait 0.5")
+        yield("/ice stop")
+        yield("/wait 0.5")
+        yield("/ice stop")
+        yield("/wait 0.5")
     end
 end
 
@@ -352,6 +407,18 @@ end
 local function SwitchToJob(jobId, restartIce)
     if restartIce == nil then restartIce = true end
 
+    -- Debug: show all gearsets to understand the mapping
+    if DEBUG then
+        DebugLog("=== Scanning all gearsets ===")
+        for i = 1, 20 do
+            local g = Player.GetGearset(i)
+            if g and g.ClassJob and g.ClassJob > 0 then
+                DebugLog("Slot " .. i .. ": " .. (g.Name or "?") .. " | ClassJob: " .. g.ClassJob)
+            end
+        end
+        DebugLog("=== Looking for JobId: " .. jobId .. " ===")
+    end
+
     for idx = 1, 100 do
         local gs = Player.GetGearset(idx)
         if gs and gs.ClassJob == jobId then
@@ -359,10 +426,59 @@ local function SwitchToJob(jobId, restartIce)
             StopIce()
             yield("/wait 1")
 
-            -- Switch gearset
-            yield("/echo [CosmicLeveling] Switching to gearset: " .. gs.Name)
-            yield("/gearset change " .. idx)
-            yield("/wait 1")
+            -- IMPORTANT: The /gearset change command uses 1-based UI slot numbers
+            -- Player.GetGearset() index is 0-based internally, so UI slot = idx + 1
+            local uiSlot = idx + 1
+            DebugLog("Found gearset at API index: " .. idx .. " | UI Slot: " .. uiSlot .. " | Name: " .. (gs.Name or "?") .. " | ClassJob: " .. gs.ClassJob)
+            yield("/echo [CosmicLeveling] Switching to gearset: " .. (gs.Name or "?") .. " (slot " .. uiSlot .. ")")
+
+            -- Keep trying until we successfully switch to the correct job
+            local maxAttempts = 60  -- Max 60 attempts (about 2-3 minutes with waits)
+            local attempt = 0
+
+            while attempt < maxAttempts do
+                attempt = attempt + 1
+
+                -- Wait if blocked by crafting, duty, or event (like Mech Ops)
+                if IsBlockedFromSwitching() then
+                    if IsCrafting() then
+                        yield("/echo [CosmicLeveling] Waiting for craft to finish... (attempt " .. attempt .. ")")
+                    elseif IsBoundByDutyOrEvent() then
+                        yield("/echo [CosmicLeveling] Waiting for duty/event to finish... (attempt " .. attempt .. ")")
+                    end
+                    WaitUntilCanSwitch(120)
+                    yield("/wait 1")
+                end
+
+                -- Close any open windows that might block gearset change
+                yield("/callback SelectYesno true -1")
+                yield("/callback StellarMissionContent true -1")
+                yield("/wait 0.3")
+
+                -- Try to switch gearset (use uiSlot, not idx!)
+                yield("/gearset change " .. uiSlot)
+                yield("/wait 1")
+
+                -- Check if switch worked
+                local lp = Svc.ClientState.LocalPlayer
+                if lp then
+                    local currentJobId = lp.ClassJob.RowId
+                    if currentJobId == jobId then
+                        yield("/echo [CosmicLeveling] Job switch successful!")
+                        break  -- Success!
+                    else
+                        DebugLog("Switch attempt " .. attempt .. " failed. Current: " .. currentJobId .. " Expected: " .. jobId)
+                        yield("/wait 2")  -- Wait before retry
+                    end
+                end
+            end
+
+            -- Final verification
+            local lp = Svc.ClientState.LocalPlayer
+            if lp and lp.ClassJob.RowId ~= jobId then
+                yield("/echo [CosmicLeveling] ERROR: Failed to switch job after " .. maxAttempts .. " attempts!")
+                return false
+            end
 
             -- Equip recommended gear using AutoDuty
             yield("/echo [CosmicLeveling] Equipping recommended gear...")
@@ -444,8 +560,6 @@ end
 
 -- Main Logic
 yield("/echo [CosmicLeveling] === Cosmic Exploration Auto-Leveling ===")
-yield("/echo [CosmicLeveling] Mode: " .. (CATCHUP_MODE and "Catch-up" or "Strict"))
-yield("/echo [CosmicLeveling] Breakpoints: " .. table.concat(BREAKPOINTS, ", "))
 
 -- Check player availability
 if not Player.Available then
@@ -460,7 +574,7 @@ if not lp then
     return
 end
 
--- Check if character is already marked as completed
+-- Check if character is already marked as completed BEFORE stopping Ice
 local charKey = GetCharacterKey()
 DebugLog("Character key: " .. tostring(charKey))
 if charKey and IsCharacterCompleted(charKey) then
@@ -469,6 +583,17 @@ if charKey and IsCharacterCompleted(charKey) then
     yield("/echo [CosmicLeveling] === Done ===")
     return
 end
+
+-- IMMEDIATELY stop Ice before job checks - this is critical!
+-- Ice must be stopped so we can properly evaluate and switch jobs
+-- (Only reached if character is NOT completed)
+if USE_ICE then
+    yield("/ice stop")
+    yield("/wait 0.1")
+end
+
+yield("/echo [CosmicLeveling] Mode: " .. (CATCHUP_MODE and "Catch-up" or "Strict"))
+yield("/echo [CosmicLeveling] Breakpoints: " .. table.concat(BREAKPOINTS, ", "))
 
 local currentJobId = lp.ClassJob.RowId
 local currentLevel = lp.Level

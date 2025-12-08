@@ -22,12 +22,16 @@ yield("/ice stop")
 Ice is typically used in combination with job switching and gear equipping:
 
 ```lua
--- Stop Ice before switching jobs
+-- Stop Ice before switching jobs (use multiple stops to ensure it registers)
+yield("/ice stop")
+yield("/wait 0.5")
+yield("/ice stop")
+yield("/wait 0.5")
 yield("/ice stop")
 yield("/wait 1")
 
--- Switch job
-yield("/gearset change " .. gearsetIndex)
+-- Switch job (uiSlot = API index + 1!)
+yield("/gearset change " .. uiSlot)
 yield("/wait 1")
 
 -- Equip recommended gear (AutoDuty)
@@ -56,7 +60,11 @@ When using Ice, you typically also need:
 
 ```lua
 local function SwitchJobAndRestartIce(jobId)
-    -- Stop current automation
+    -- Stop current automation (multiple times to ensure it registers)
+    yield("/ice stop")
+    yield("/wait 0.5")
+    yield("/ice stop")
+    yield("/wait 0.5")
     yield("/ice stop")
     yield("/wait 1")
 
@@ -64,7 +72,9 @@ local function SwitchJobAndRestartIce(jobId)
     for idx = 1, 100 do
         local gs = Player.GetGearset(idx)
         if gs and gs.ClassJob == jobId then
-            yield("/gearset change " .. idx)
+            -- IMPORTANT: UI slot = API index + 1!
+            local uiSlot = idx + 1
+            yield("/gearset change " .. uiSlot)
             yield("/wait 1")
 
             -- Equip recommended gear
@@ -83,6 +93,9 @@ end
 ## Notes
 
 - Always stop Ice before switching jobs to avoid issues
+- **Use multiple `/ice stop` commands** to ensure Ice actually stops before switching
+- **CRITICAL:** `Player.GetGearset(idx)` returns API index, but `/gearset change` uses UI slot numbers. Always use `idx + 1` for the gearset change command!
 - Give adequate wait time between commands (1-2 seconds)
 - Ice handles the actual Cosmic Exploration content automatically
 - Use in combination with breakpoint-based leveling scripts
+- Can't switch jobs during crafting, Mech Ops, or other duties - wait for them to complete first

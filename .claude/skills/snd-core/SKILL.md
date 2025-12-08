@@ -268,7 +268,7 @@ end
 ### Gearsets (for listing saved gearsets)
 ```lua
 -- Get gearset info
-local gs = Player.GetGearset(1)  -- Gearset slot 1-100
+local gs = Player.GetGearset(1)  -- API index 1-100
 if gs and gs.ClassJob and gs.ClassJob > 0 then
     local jobId = gs.ClassJob
     local gearsetName = gs.Name
@@ -282,6 +282,29 @@ for idx = 1, 100 do
         yield("/echo Job ID: " .. gs.ClassJob .. " Gearset: " .. gs.Name .. " iLvl: " .. gs.ItemLevel)
     end
 end
+```
+
+**CRITICAL WARNING - Gearset Index Offset:**
+`Player.GetGearset(idx)` returns gearsets where the API index is **OFF BY ONE** from the UI slot number!
+
+- API index 1 = UI slot 2
+- API index 5 = UI slot 6
+- etc.
+
+When using `/gearset change`, you must use the **UI slot number**, not the API index:
+```lua
+-- CORRECT: Switch to a gearset by job ID
+for idx = 1, 100 do
+    local gs = Player.GetGearset(idx)
+    if gs and gs.ClassJob == targetJobId then
+        local uiSlot = idx + 1  -- Convert API index to UI slot!
+        yield("/gearset change " .. uiSlot)
+        break
+    end
+end
+
+-- WRONG: This uses the API index directly (will switch to wrong gearset!)
+-- yield("/gearset change " .. idx)  -- DON'T DO THIS!
 ```
 
 **WARNING:** `gs.ItemLevel` is the average item level of the GEAR in that gearset, NOT the character's level in that job!
@@ -943,6 +966,7 @@ local _gearsetCache = nil
 local _gearsetStamp = nil
 
 -- Build a table mapping ClassJob ID to gearset info
+-- IMPORTANT: Stores uiSlot (idx + 1) for use with /gearset change command!
 function BuildGearsetTable(force)
     if _gearsetCache and not force then
         return _gearsetCache
@@ -952,7 +976,8 @@ function BuildGearsetTable(force)
     for idx = 1, 100 do
         local gs = Player.GetGearset(idx)
         if gs and gs.ClassJob and gs.ClassJob > 0 and gs.Name and gs.Name ~= "" then
-            gearset[gs.ClassJob] = { index = idx, name = gs.Name }
+            -- Store UI slot (idx + 1), not API index!
+            gearset[gs.ClassJob] = { uiSlot = idx + 1, name = gs.Name }
         end
     end
 
@@ -968,6 +993,7 @@ function InvalidateGearsetCache()
 end
 
 -- Get gearset for a specific job
+-- Returns { uiSlot = N, name = "..." } or nil
 function GetGearsetForJob(jobId)
     local gearsets = BuildGearsetTable()
     return gearsets[jobId]
