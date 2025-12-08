@@ -1,4 +1,6 @@
-require('dotenv').config();
+// Load .env.example as base (source of truth), then .env as overrides
+require('dotenv').config({ path: '.env.example' });
+require('dotenv').config({ override: true }); // .env overrides .env.example
 const fs = require('fs');
 const path = require('path');
 
@@ -11,7 +13,7 @@ const config = {
 // Validate config
 function validateConfig() {
   if (!config.sndConfigPath) {
-    console.error('ERROR: SND_CONFIG_PATH not set in .env');
+    console.error('ERROR: SND_CONFIG_PATH not set in .env.example or .env');
     process.exit(1);
   }
   if (!fs.existsSync(config.sndConfigPath)) {
