@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Heiner'
-version: 2.5.0
+version: 2.6.0
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters
 plugin_dependencies:
 - AutoDuty
@@ -27,13 +27,16 @@ configs:
   CompletedCharacters:
     description: Comma-separated list of completed characters (Name@Server format). Auto-populated when a character finishes all jobs.
     default: ""
+  AlwaysUpdateGear:
+    description: Always update gear on every run, not just when switching jobs or at breakpoints (true/false)
+    default: false
 [[End Metadata]]
 --]=====]
 
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.5.0
+                                  Version 2.6.0
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -61,10 +64,15 @@ HOW IT WORKS:
    - Switches gearset and equips recommended gear
    - Restarts Ice
 
-5. When all jobs in current category reach MaxLevel, automatically switches to
+5. When all jobs are compliant (at breakpoint level):
+   - Stays on current job
+   - Updates equipment via /ad equiprec (to keep gear current as you level)
+   - Restarts Ice to continue leveling
+
+6. When all jobs in current category reach MaxLevel, automatically switches to
    the other category (Crafter <-> Gatherer) and continues the process.
 
-6. When ALL jobs (both categories) reach MaxLevel:
+7. When ALL jobs (both categories) reach MaxLevel:
    - Marks the character as "completed" in config (persisted)
    - Stops Ice
    - Future runs will skip entirely (no Ice start/stop, just exits)
@@ -84,13 +92,24 @@ MAX LEVEL:
 Configure the target level cap via "MaxLevel" setting (default: 100).
 Set to a lower value (e.g., 90) if you want to stop leveling earlier.
 
+EQUIPMENT UPDATES:
+------------------
+Equipment is automatically updated (/ad equiprec) in two scenarios:
+1. When switching to a different job
+2. When all jobs are compliant at a breakpoint (staying on current job)
+
+This ensures gear stays current as you level without updating on every run.
+
+If you want equipment to update on EVERY run (regardless of job switch or
+breakpoint status), enable the "AlwaysUpdateGear" option.
+
 EXAMPLE FLOW (Catch-up Mode):
 -----------------------------
 - You're on CRP Lv.63, but BSM is Lv.45
 - Script detects BSM is behind the 50 breakpoint
 - Waits for current craft to finish
 - Switches to BSM, equips recommended gear, starts Ice
-- Next run: BSM is now 52, all crafters at 50+, continue leveling
+- Next run: BSM is now 52, all crafters at 50+, updates equipment, continues
 
 COMPLETED CHARACTERS:
 ---------------------
@@ -141,6 +160,7 @@ local DEBUG = Config.Get("Debug") == "true" or Config.Get("Debug") == true
 local USE_ICE = Config.Get("UseIce") == "true" or Config.Get("UseIce") == true
 local CATCHUP_MODE = Config.Get("CatchupMode") == "true" or Config.Get("CatchupMode") == true
 local COMPLETED_CHARACTERS = Config.Get("CompletedCharacters") or ""
+local ALWAYS_UPDATE_GEAR = Config.Get("AlwaysUpdateGear") == "true" or Config.Get("AlwaysUpdateGear") == true
 
 -- Helper: Get current character identifier (Name@Server)
 local function GetCharacterKey()
@@ -575,7 +595,7 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
         else
             local nextBP = GetNextBreakpoint(currentLevel)
             yield("/echo [CosmicLeveling] All " .. categoryName .. "s at " .. exactBP .. "+! Continue to next breakpoint: " .. nextBP)
-            return "continue"
+            return "compliant"  -- All jobs at breakpoint, trigger equipment update
         end
 
     -- MODE: CATCH-UP - Always check all jobs for compliance
@@ -601,7 +621,7 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
             local nextBP = GetNextBreakpoint(currentLevel)
             yield("/echo [CosmicLeveling] All " .. categoryName .. "s compliant with current progress!")
             yield("/echo [CosmicLeveling] Continue leveling to next breakpoint: " .. nextBP)
-            return "continue"
+            return "compliant"  -- All jobs compliant, trigger equipment update
         end
     end
 end
@@ -662,8 +682,22 @@ local otherCategoryName = IsCrafter(currentJobId) and "Gatherer" or "Crafter"
 -- Process current category
 local result = ProcessCategory(jobList, currentCategory, currentLevel)
 
--- If result is "continue", we stay on current job - make sure Ice is running
+-- If result is "continue", we stay on current job
 if result == "continue" then
+    -- Update gear if AlwaysUpdateGear is enabled
+    if ALWAYS_UPDATE_GEAR then
+        yield("/echo [CosmicLeveling] Updating equipment (AlwaysUpdateGear enabled)...")
+        yield("/ad equiprec")
+        yield("/wait 2")
+    end
+    StartIce()
+end
+
+-- If result is "compliant", all jobs at breakpoint - update equipment and continue
+if result == "compliant" then
+    yield("/echo [CosmicLeveling] All jobs compliant - updating equipment...")
+    yield("/ad equiprec")
+    yield("/wait 2")
     StartIce()
 end
 
