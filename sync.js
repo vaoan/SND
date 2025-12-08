@@ -70,6 +70,144 @@ function sanitizeFilename(name) {
   return name.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
 }
 
+// Parse SND metadata from Lua content
+function parseLuaMetadata(content) {
+  const metadata = {
+    author: '',
+    version: '1.0.0',
+    description: '',
+    plugin_dependencies: [],
+    configs: {}
+  };
+
+  // Extract metadata block
+  const metadataMatch = content.match(/\[\[SND Metadata\]\]([\s\S]*?)\[\[End Metadata\]\]/);
+  if (!metadataMatch) {
+    return metadata;
+  }
+
+  const metadataBlock = metadataMatch[1];
+  const lines = metadataBlock.split('\n');
+
+  let currentConfig = null;
+  let inConfigs = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Skip empty lines
+    if (!trimmed) continue;
+
+    // Check for top-level fields
+    if (!line.startsWith('  ') && !line.startsWith('\t')) {
+      inConfigs = false;
+      currentConfig = null;
+
+      if (trimmed.startsWith('author:')) {
+        metadata.author = trimmed.slice(7).trim().replace(/^['"]|['"]$/g, '');
+      } else if (trimmed.startsWith('version:')) {
+        metadata.version = trimmed.slice(8).trim().replace(/^['"]|['"]$/g, '');
+      } else if (trimmed.startsWith('description:')) {
+        // Handle multi-line description with |
+        let desc = trimmed.slice(12).trim();
+        if (desc === '|') {
+          desc = '';
+          // Collect following indented lines
+          for (let j = i + 1; j < lines.length; j++) {
+            const nextLine = lines[j];
+            if (nextLine.match(/^\s{2,}/) || nextLine.match(/^\t/)) {
+              desc += (desc ? '\n' : '') + nextLine.trim();
+              i = j;
+            } else {
+              break;
+            }
+          }
+        }
+        metadata.description = desc.replace(/^['"]|['"]$/g, '');
+      } else if (trimmed.startsWith('plugin_dependencies:')) {
+        // Collect following list items
+        for (let j = i + 1; j < lines.length; j++) {
+          const nextLine = lines[j].trim();
+          if (nextLine.startsWith('- ')) {
+            metadata.plugin_dependencies.push(nextLine.slice(2).trim());
+            i = j;
+          } else if (nextLine && !nextLine.startsWith('-')) {
+            break;
+          }
+        }
+      } else if (trimmed === 'configs:') {
+        inConfigs = true;
+      }
+    } else if (inConfigs) {
+      // We're inside configs block
+      const indent = line.match(/^(\s*)/)[1].length;
+
+      if (indent === 2 || (line.startsWith('\t') && !line.startsWith('\t\t'))) {
+        // This is a config name (2 spaces or 1 tab indent)
+        const configName = trimmed.replace(/:$/, '');
+        currentConfig = configName;
+        metadata.configs[configName] = {
+          description: '',
+          default: '',
+          min: null,
+          max: null
+        };
+      } else if (currentConfig && (indent >= 4 || line.startsWith('\t\t'))) {
+        // This is a config property (4+ spaces or 2 tabs)
+        if (trimmed.startsWith('description:')) {
+          metadata.configs[currentConfig].description = trimmed.slice(12).trim().replace(/^['"]|['"]$/g, '');
+        } else if (trimmed.startsWith('default:')) {
+          metadata.configs[currentConfig].default = trimmed.slice(8).trim().replace(/^['"]|['"]$/g, '');
+        } else if (trimmed.startsWith('min:')) {
+          metadata.configs[currentConfig].min = trimmed.slice(4).trim();
+        } else if (trimmed.startsWith('max:')) {
+          metadata.configs[currentConfig].max = trimmed.slice(4).trim();
+        }
+      }
+    }
+  }
+
+  return metadata;
+}
+
+// Convert parsed metadata to SND JSON format
+function metadataToSndFormat(parsed) {
+  const configs = {};
+
+  for (const [name, cfg] of Object.entries(parsed.configs)) {
+    // Determine type based on value
+    let type = 'string';
+    const defaultVal = cfg.default;
+    if (defaultVal === 'true' || defaultVal === 'false') {
+      type = 'bool';
+    } else if (!isNaN(Number(defaultVal)) && defaultVal !== '') {
+      type = 'int';
+    }
+
+    configs[name] = {
+      Value: String(defaultVal),
+      DefaultValue: String(defaultVal),
+      Description: cfg.description || '',
+      Type: type,
+      MinValue: cfg.min !== null ? String(cfg.min) : null,
+      MaxValue: cfg.max !== null ? String(cfg.max) : null,
+      ValidationPattern: null,
+      ValidationMessage: null,
+      Choices: [],
+      IsChoice: false
+    };
+  }
+
+  return {
+    Description: parsed.description,
+    Author: parsed.author,
+    Version: parsed.version,
+    Configs: configs,
+    PluginDependecies: parsed.plugin_dependencies  // Note: SND has typo "Dependecies"
+  };
+}
+
 // PULL: Sync from SND JSON -> Local Lua files
 function pullFromSnd() {
   console.log('=== PULL: SND -> Local ===\n');
@@ -147,9 +285,16 @@ function pushToSnd() {
 
     const matchIndex = existingIndex !== -1 ? existingIndex : exactMatchIndex;
 
+    // Parse metadata from Lua content
+    const parsedMeta = parseLuaMetadata(content);
+    const sndMeta = metadataToSndFormat(parsedMeta);
+
     if (matchIndex !== -1) {
       // Update existing macro
-      if (sndConfig.Macros[matchIndex].Content === content) {
+      const contentChanged = sndConfig.Macros[matchIndex].Content !== content;
+      const metaChanged = JSON.stringify(sndConfig.Macros[matchIndex].Metadata.Configs) !== JSON.stringify(sndMeta.Configs);
+
+      if (!contentChanged && !metaChanged) {
         console.log(`  [unchanged] ${relativePath}`);
         unchanged++;
         continue;
@@ -157,11 +302,17 @@ function pushToSnd() {
       console.log(`  [updated]   ${relativePath} -> ${sndConfig.Macros[matchIndex].Name}`);
       sndConfig.Macros[matchIndex].Content = content;
       sndConfig.Macros[matchIndex].Metadata.LastModified = new Date().toISOString();
+      // Update metadata from parsed Lua content
+      sndConfig.Macros[matchIndex].Metadata.Description = sndMeta.Description;
+      sndConfig.Macros[matchIndex].Metadata.Author = sndMeta.Author;
+      sndConfig.Macros[matchIndex].Metadata.Version = sndMeta.Version;
+      sndConfig.Macros[matchIndex].Metadata.Configs = sndMeta.Configs;
+      sndConfig.Macros[matchIndex].Metadata.PluginDependecies = sndMeta.PluginDependecies;
       updated++;
     } else {
       // Create new macro
       console.log(`  [created]   ${relativePath}`);
-      const newMacro = createMacroEntry(filename, content, sndFolderPath);
+      const newMacro = createMacroEntry(filename, content, sndFolderPath, sndMeta);
       sndConfig.Macros.push(newMacro);
       created++;
     }
@@ -194,7 +345,7 @@ function findLuaFiles(dir) {
 }
 
 // Create a new macro entry
-function createMacroEntry(name, content, folderPath) {
+function createMacroEntry(name, content, folderPath, sndMeta = {}) {
   return {
     Id: generateUuid(),
     Name: name,
@@ -203,14 +354,14 @@ function createMacroEntry(name, content, folderPath) {
       TriggerEvents: [],
       CraftingLoop: false,
       CraftLoopCount: 0,
-      Description: '',
-      Author: '',
-      Version: '1.0.0',
+      Description: sndMeta.Description || '',
+      Author: sndMeta.Author || '',
+      Version: sndMeta.Version || '1.0.0',
       LastModified: new Date().toISOString(),
       AdditionalData: {},
-      Configs: {},
+      Configs: sndMeta.Configs || {},
       AddonEventConfig: null,
-      PluginDependecies: [],
+      PluginDependecies: sndMeta.PluginDependecies || [],
       PluginsToDisable: [],
       Dependencies: []
     },

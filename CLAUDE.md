@@ -42,6 +42,7 @@ Detailed documentation is organized into modular skills in `.claude/skills/`:
 | Skill | Description |
 |-------|-------------|
 | **snd-fates** | FATE farming patterns, targeting, level sync, participation loops |
+| **snd-ice** | Cosmic Exploration automation using Ice plugin |
 
 ---
 
@@ -209,5 +210,6 @@ For complete documentation, see the individual skill files:
 ├── snd-autoretainer/SKILL.md # Retainers
 ├── snd-combat/SKILL.md       # Combat plugins
 ├── snd-textadvance/SKILL.md  # Dialog automation
-└── snd-fates/SKILL.md        # FATE farming
+├── snd-fates/SKILL.md        # FATE farming
+└── snd-ice/SKILL.md          # Cosmic Exploration (Ice plugin)
 ```

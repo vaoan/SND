@@ -21,19 +21,19 @@ plugin_dependencies:
 - PluginName1
 - PluginName2
 configs:
-  SettingName:
-    default: "defaultValue"
-    description: What this setting does
-    is_choice: true
-    choices: ["Option1", "Option2"]
+  NumberSetting:
+    description: A numeric setting with min/max
+    default: 50
+    min: 1
+    max: 100
+  StringSetting:
+    description: A text setting
+    default: SomeValue
+  BooleanSetting:
+    description: A true/false setting
+    default: true
 [[End Metadata]]
 --]=====]
-
--- Version Fingerprint: v1.0.0-YYYYMMDD-HHMMSS-hash
--- Generated: YYYY-MM-DD HH:MM:SS
-
--- Version History
--- v1.0.0 - Initial version
 ```
 
 ### Required Fields
@@ -45,20 +45,45 @@ configs:
 - **plugin_dependencies**: Array of required Dalamud plugins
 - **configs**: User-configurable settings object
 
-### Configuration Types
-- **String**: `default: "text"`
-- **Integer**: `default: 5`
-- **Float**: `default: 1.5`
-- **Boolean**: `default: true`
-- **Choice**: `is_choice: true` with `choices: ["Option1", "Option2"]`
+### Configuration Field Properties
+Each config setting can have:
+- **description**: What this setting does (REQUIRED - put before default)
+- **default**: Default value (string, number, or boolean)
+- **min**: Minimum value (for numbers)
+- **max**: Maximum value (for numbers)
+
+### Configuration Examples
+```lua
+configs:
+  -- Numeric with range
+  GameCount:
+    description: Number of games to play. Set to 0 to skip.
+    default: 125
+    min: 0
+    max: 1000
+
+  -- Boolean
+  EnableFeature:
+    description: Enable this feature (true/false)
+    default: true
+
+  -- String
+  TargetName:
+    description: Name of the target NPC
+    default: SomeNPC
+```
+
+**IMPORTANT:** The `description` field should come BEFORE `default` in the YAML structure for proper display in SND.
 
 ## Configuration Access
+
+**IMPORTANT:** Config values are stored in SND's JSON as strings, regardless of the declared type. Always convert appropriately.
 
 ```lua
 -- Always use Config.Get() to access configuration values
 local settingValue = Config.Get("SettingName")
 local numericValue = tonumber(Config.Get("NumericSetting"))
-local booleanValue = Config.Get("BooleanSetting") == "true"
+local booleanValue = Config.Get("BooleanSetting") == "true" or Config.Get("BooleanSetting") == true
 
 -- Type-safe access functions
 function GetConfigAsString(key, defaultValue)
@@ -72,8 +97,49 @@ end
 
 function GetConfigAsBoolean(key, defaultValue)
     local value = Config.Get(key)
-    return value == "true" or (defaultValue and value ~= "false")
+    -- Handle both string "true" and actual boolean true
+    if value == "true" or value == true then return true end
+    if value == "false" or value == false then return false end
+    return defaultValue or false
 end
+```
+
+### How Configs Work in SND
+
+1. **Metadata YAML → SND JSON**: When syncing, the YAML metadata in your Lua file is parsed and converted to SND's internal JSON format.
+
+2. **SND JSON Format**: Each config becomes a JSON object with these properties:
+   - `Value`: Current value (string)
+   - `DefaultValue`: Default value from metadata (string)
+   - `Description`: Description text
+   - `Type`: "bool", "int", or "string" (auto-detected)
+   - `MinValue`/`MaxValue`: For numeric types (string or null)
+
+3. **Type Detection**:
+   - `true`/`false` → `bool`
+   - Numeric values → `int`
+   - Everything else → `string`
+
+4. **Example JSON output** (what SND stores):
+```json
+{
+  "Debug": {
+    "Value": "true",
+    "DefaultValue": "true",
+    "Description": "Show debug info",
+    "Type": "bool",
+    "MinValue": null,
+    "MaxValue": null
+  },
+  "Breakpoint1": {
+    "Value": "50",
+    "DefaultValue": "50",
+    "Description": "First breakpoint level",
+    "Type": "int",
+    "MinValue": "1",
+    "MaxValue": "100"
+  }
+}
 ```
 
 ## Logging System
