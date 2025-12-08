@@ -134,7 +134,7 @@ end
 
 | Quest Name | Quest ID | Notes |
 |------------|----------|-------|
-| Inscrutable Tastes | TBD | Required at level 50 for collectables |
+| Inscrutable Tastes | 67631 | Required at level 50 for collectables |
 
 ## Notes
 
