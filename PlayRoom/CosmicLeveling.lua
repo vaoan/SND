@@ -17,7 +17,7 @@ configs:
     description: true = always check all jobs for compliance. false = only check at exact breakpoints
     default: true
   Breakpoints:
-    description: Comma-separated breakpoint levels (e.g., "63,71,81,91"). Level 50 is ALWAYS included automatically because each job has a required quest at level 50 that must be completed manually before continuing.
+    description: Comma-separated breakpoint levels (e.g., "63,71,81,91"). Level 50 is ALWAYS included because the quest "Inscrutable Tastes" unlocks at 50 and must be completed or leveling will be blocked.
     default: "63,71,81,91"
   MaxLevel:
     description: Target level cap for all jobs (default 100)
@@ -75,9 +75,9 @@ Configure via the "Breakpoints" setting as a comma-separated list.
 Default: "63,71,81,91"
 
 IMPORTANT: Level 50 is ALWAYS included automatically and cannot be removed.
-This is because each DoH/DoL job requires the quest "INSCRUTABLE TASTES" at
-level 50 to unlock collectables. Without this quest, leveling will get stuck.
-The script will display a warning when switching to a job that needs to reach 50.
+At level 50, the quest "INSCRUTABLE TASTES" becomes available. This quest must
+be completed or leveling will be blocked when all jobs reach 50.
+The script displays a warning when switching to a job that needs to reach 50.
 
 MAX LEVEL:
 ----------
