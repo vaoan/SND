@@ -1,8 +1,8 @@
 --[=====[
 [[SND Metadata]]
 author: 'Heiner'
-version: 2.6.0
-description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters
+version: 2.11.0
+description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters, gear updates at configurable levels
 plugin_dependencies:
 - AutoDuty
 - ICE
@@ -30,13 +30,52 @@ configs:
   AlwaysUpdateGear:
     description: Always update gear on every run, not just when switching jobs or at breakpoints (true/false)
     default: false
+  GearUpdateBreakpoints:
+    description: Comma-separated levels at which gear is updated even without job switch (e.g., "80,90"). Leave empty to disable.
+    default: "80,90"
+  EnableCRP:
+    description: Include Carpenter in leveling rotation
+    default: true
+  EnableBSM:
+    description: Include Blacksmith in leveling rotation
+    default: true
+  EnableARM:
+    description: Include Armorer in leveling rotation
+    default: true
+  EnableGSM:
+    description: Include Goldsmith in leveling rotation
+    default: true
+  EnableLTW:
+    description: Include Leatherworker in leveling rotation
+    default: true
+  EnableWVR:
+    description: Include Weaver in leveling rotation
+    default: true
+  EnableALC:
+    description: Include Alchemist in leveling rotation
+    default: true
+  EnableCUL:
+    description: Include Culinarian in leveling rotation
+    default: true
+  EnableMIN:
+    description: Include Miner in leveling rotation
+    default: true
+  EnableBTN:
+    description: Include Botanist in leveling rotation
+    default: true
+  EnableFSH:
+    description: Include Fisher in leveling rotation
+    default: true
+  CustomEndMacro:
+    description: Custom macro to run instead of starting Ice. If set, runs this and exits. Leave empty for normal Ice behavior. Example: /snd run "MyMacro"
+    default: ""
 [[End Metadata]]
 --]=====]
 
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.6.0
+                                  Version 2.11.0
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -69,10 +108,14 @@ HOW IT WORKS:
    - Updates equipment via /ad equiprec (to keep gear current as you level)
    - Restarts Ice to continue leveling
 
-6. When all jobs in current category reach MaxLevel, automatically switches to
+6. When continuing to level (no job switch needed):
+   - If at a gear update breakpoint (default: 80, 90), updates equipment
+   - Otherwise continues without gear update (unless AlwaysUpdateGear is on)
+
+7. When all jobs in current category reach MaxLevel, automatically switches to
    the other category (Crafter <-> Gatherer) and continues the process.
 
-7. When ALL jobs (both categories) reach MaxLevel:
+8. When ALL jobs (both categories) reach MaxLevel:
    - Marks the character as "completed" in config (persisted)
    - Stops Ice
    - Future runs will skip entirely (no Ice start/stop, just exits)
@@ -94,14 +137,55 @@ Set to a lower value (e.g., 90) if you want to stop leveling earlier.
 
 EQUIPMENT UPDATES:
 ------------------
-Equipment is automatically updated (/ad equiprec) in two scenarios:
+Equipment is automatically updated (/ad equiprec) in these scenarios:
 1. When switching to a different job
 2. When all jobs are compliant at a breakpoint (staying on current job)
+3. When reaching a gear update breakpoint level (configurable via GearUpdateBreakpoints)
 
 This ensures gear stays current as you level without updating on every run.
 
+GEAR UPDATE BREAKPOINTS:
+------------------------
+Configure via "GearUpdateBreakpoints" setting as a comma-separated list.
+Default: "80,90"
+
+When your character reaches one of these levels, gear will be updated even if
+no job switch is needed and you're not at a job rotation breakpoint. This is
+useful for ensuring gear stays current at major level milestones.
+
+Set to empty ("") to disable this feature.
+
 If you want equipment to update on EVERY run (regardless of job switch or
-breakpoint status), enable the "AlwaysUpdateGear" option.
+breakpoint status), enable the "AlwaysUpdateGear" option instead.
+
+JOB EXCLUSION:
+--------------
+You can exclude specific jobs from the leveling rotation using the Enable flags:
+- EnableCRP, EnableBSM, EnableARM, EnableGSM, EnableLTW, EnableWVR, EnableALC, EnableCUL
+- EnableMIN, EnableBTN, EnableFSH
+
+Set any of these to "false" to exclude that job. Excluded jobs will be ignored
+when checking breakpoints and will never be switched to.
+
+If you're currently on a disabled job when the script runs, it will automatically
+switch to the lowest level enabled job (same category first, then other category).
+
+Edge cases handled:
+- All jobs disabled: Error and exit
+- Current category empty: Auto-switch to other category
+- Current job disabled: Auto-switch to lowest enabled job
+
+CUSTOM END MACRO:
+-----------------
+Instead of starting Ice at the end, you can run a custom macro/command.
+Set "CustomEndMacro" to any command (e.g., "/snd run MyOtherScript").
+
+When CustomEndMacro is set:
+- The script runs your custom command instead of "/ice start"
+- The script exits immediately after (does not continue)
+- Useful for chaining scripts or running different automation
+
+Leave empty for normal Ice behavior.
 
 EXAMPLE FLOW (Catch-up Mode):
 -----------------------------
@@ -161,6 +245,28 @@ local USE_ICE = Config.Get("UseIce") == "true" or Config.Get("UseIce") == true
 local CATCHUP_MODE = Config.Get("CatchupMode") == "true" or Config.Get("CatchupMode") == true
 local COMPLETED_CHARACTERS = Config.Get("CompletedCharacters") or ""
 local ALWAYS_UPDATE_GEAR = Config.Get("AlwaysUpdateGear") == "true" or Config.Get("AlwaysUpdateGear") == true
+local CUSTOM_END_MACRO = Config.Get("CustomEndMacro") or ""
+local GEAR_UPDATE_BREAKPOINTS_STR = Config.Get("GearUpdateBreakpoints") or "80,90"
+
+-- Job enable flags
+local function IsJobEnabled(abbr)
+    local configKey = "Enable" .. abbr
+    local value = Config.Get(configKey)
+    -- Default to true if not set
+    if value == nil or value == "" then return true end
+    return value == "true" or value == true
+end
+
+-- Filter job list to only include enabled jobs
+local function FilterEnabledJobs(jobList)
+    local filtered = {}
+    for _, job in ipairs(jobList) do
+        if IsJobEnabled(job.abbr) then
+            table.insert(filtered, job)
+        end
+    end
+    return filtered
+end
 
 -- Helper: Get current character identifier (Name@Server)
 local function GetCharacterKey()
@@ -255,12 +361,20 @@ local function WaitUntilCanSwitch(maxWaitSeconds)
     return true
 end
 
--- Ice control helpers (respects USE_ICE flag)
+-- Ice control helpers (respects USE_ICE flag and CustomEndMacro)
 local function StartIce()
+    -- If custom end macro is set, run it instead and signal to exit
+    if CUSTOM_END_MACRO ~= "" then
+        yield("/echo [CosmicLeveling] Running custom end macro...")
+        yield(CUSTOM_END_MACRO)
+        return true  -- Signal that we ran custom macro (script should exit)
+    end
+
     if USE_ICE then
         yield("/echo [CosmicLeveling] Starting Ice...")
         yield("/ice start")
     end
+    return false  -- Normal flow, script continues
 end
 
 -- Aggressively stop Ice and wait for it to actually stop
@@ -319,6 +433,35 @@ end
 -- Get breakpoints from config (sorted ascending, level 50 always included)
 local breakpointsStr = Config.Get("Breakpoints") or "63,71,81,91"
 local BREAKPOINTS = ParseBreakpoints(breakpointsStr)
+
+-- Parse gear update breakpoints (simple list, no level 50 requirement)
+local function ParseGearUpdateBreakpoints(str)
+    local breakpoints = {}
+    if not str or str == "" then return breakpoints end
+
+    for num in string.gmatch(str, "([^,]+)") do
+        local level = tonumber(num:match("^%s*(.-)%s*$"))  -- Trim whitespace
+        if level and level >= 1 and level <= 100 then
+            table.insert(breakpoints, level)
+        end
+    end
+
+    table.sort(breakpoints)
+    return breakpoints
+end
+
+-- Get gear update breakpoints from config
+local GEAR_UPDATE_BREAKPOINTS = ParseGearUpdateBreakpoints(GEAR_UPDATE_BREAKPOINTS_STR)
+
+-- Helper: Check if level is at a gear update breakpoint
+local function IsAtGearUpdateBreakpoint(level)
+    for _, bp in ipairs(GEAR_UPDATE_BREAKPOINTS) do
+        if level == bp then
+            return true
+        end
+    end
+    return false
+end
 
 -- Helper: Check if job ID is a crafter
 local function IsCrafter(jobId)
@@ -396,8 +539,8 @@ local function FindJobBehindBreakpoint(jobList, referenceLevel)
                     DebugLog(job.abbr .. " is BEHIND breakpoint " .. bp .. " (current: " .. level .. ")")
                     if level < behindLevel or (behindJob == nil) then
                         behindLevel = level
-                        behindJob = job
-                        behindJob.level = level
+                        -- Create a copy to avoid mutating the original job table
+                        behindJob = { id = job.id, abbr = job.abbr, name = job.name, level = level }
                         targetBP = bp
                     end
                     break  -- Found the first breakpoint this job is behind on
@@ -433,8 +576,8 @@ local function FindLowestLevelJob(jobList)
             local level = jobData.Level
             if level < lowestLevel then
                 lowestLevel = level
-                lowestJob = job
-                lowestJob.level = level
+                -- Create a copy to avoid mutating the original job table
+                lowestJob = { id = job.id, abbr = job.abbr, name = job.name, level = level }
             end
         end
     end
@@ -453,8 +596,8 @@ local function FindLowestJobBelowBreakpoint(jobList, breakpoint)
             local level = jobData.Level
             if level > 0 and level < lowestLevel then
                 lowestLevel = level
-                lowestJob = job
-                lowestJob.level = level
+                -- Create a copy to avoid mutating the original job table
+                lowestJob = { id = job.id, abbr = job.abbr, name = job.name, level = level }
             end
         end
     end
@@ -545,21 +688,23 @@ local function SwitchToJob(jobId, restartIce)
             yield("/ad equiprec")
             yield("/wait 2")
 
-            -- Restart Ice if requested
+            -- Restart Ice if requested (returns true if custom macro was run)
             if restartIce then
-                StartIce()
+                local ranCustomMacro = StartIce()
+                return true, ranCustomMacro
             end
 
-            return true
+            return true, false
         end
     end
     return false
 end
 
 -- Helper: Process a category and return status
--- Returns: "switched" if switched to a job, "complete" if all at 100, "continue" if should keep leveling
+-- Returns: "switched" if switched to a job, "complete" if all at max, "continue" if should keep leveling,
+--          "compliant" if all at breakpoint (triggers gear update), "custom_macro" if custom end macro ran
 local function ProcessCategory(jobList, categoryName, currentLevel)
-    -- First check if all jobs in this category are at 100
+    -- First check if all jobs in this category are at max level
     if AllJobsAtMax(jobList) then
         yield("/echo [CosmicLeveling] All " .. categoryName .. "s are at level " .. MAX_LEVEL .. "!")
         return "complete"
@@ -581,12 +726,14 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
 
         if nextJob then
             yield("/echo [CosmicLeveling] Found: " .. nextJob.abbr .. " at Lv." .. nextJob.level .. " (needs to reach " .. exactBP .. ")")
-            if SwitchToJob(nextJob.id) then
+            local switched, ranCustomMacro = SwitchToJob(nextJob.id)
+            if switched then
                 yield("/echo [CosmicLeveling] Switched to " .. nextJob.abbr .. "! Level to " .. exactBP)
                 -- Warn user if leveling to 50 (collectable quest required)
                 if exactBP == 50 then
                     OnLevel50Reached(nextJob.abbr, nextJob.name)
                 end
+                if ranCustomMacro then return "custom_macro" end
                 return "switched"
             else
                 yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. nextJob.abbr)
@@ -606,12 +753,14 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
 
         if behindJob then
             yield("/echo [CosmicLeveling] Found: " .. behindJob.abbr .. " at Lv." .. behindJob.level .. " (behind breakpoint " .. targetBP .. ")")
-            if SwitchToJob(behindJob.id) then
+            local switched, ranCustomMacro = SwitchToJob(behindJob.id)
+            if switched then
                 yield("/echo [CosmicLeveling] Switched to " .. behindJob.abbr .. "! Level to " .. targetBP)
                 -- Warn user if leveling to 50 (collectable quest required)
                 if targetBP == 50 then
                     OnLevel50Reached(behindJob.abbr, behindJob.name)
                 end
+                if ranCustomMacro then return "custom_macro" end
                 return "switched"
             else
                 yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. behindJob.abbr)
@@ -662,6 +811,9 @@ end
 
 yield("/echo [CosmicLeveling] Mode: " .. (CATCHUP_MODE and "Catch-up" or "Strict"))
 yield("/echo [CosmicLeveling] Breakpoints: " .. table.concat(BREAKPOINTS, ", ") .. " | Max: " .. MAX_LEVEL)
+if #GEAR_UPDATE_BREAKPOINTS > 0 then
+    yield("/echo [CosmicLeveling] Gear update levels: " .. table.concat(GEAR_UPDATE_BREAKPOINTS, ", "))
+end
 
 local currentJobId = lp.ClassJob.RowId
 local currentLevel = lp.Level
@@ -675,12 +827,92 @@ if currentCategory == "Other" then
     return
 end
 
-local jobList = IsCrafter(currentJobId) and CrafterJobs or GathererJobs
-local otherJobList = IsCrafter(currentJobId) and GathererJobs or CrafterJobs
+-- Filter job lists to only include enabled jobs
+local filteredCrafterJobs = FilterEnabledJobs(CrafterJobs)
+local filteredGathererJobs = FilterEnabledJobs(GathererJobs)
+
+DebugLog("Enabled Crafters: " .. #filteredCrafterJobs .. "/" .. #CrafterJobs)
+DebugLog("Enabled Gatherers: " .. #filteredGathererJobs .. "/" .. #GathererJobs)
+
+-- Check if any jobs are enabled at all
+if #filteredCrafterJobs == 0 and #filteredGathererJobs == 0 then
+    yield("/echo [CosmicLeveling] ERROR: All jobs are disabled! Enable at least one job in config.")
+    return
+end
+
+local jobList = IsCrafter(currentJobId) and filteredCrafterJobs or filteredGathererJobs
+local otherJobList = IsCrafter(currentJobId) and filteredGathererJobs or filteredCrafterJobs
 local otherCategoryName = IsCrafter(currentJobId) and "Gatherer" or "Crafter"
+
+-- Check if current category has any enabled jobs
+if #jobList == 0 then
+    yield("/echo [CosmicLeveling] No enabled jobs in current category (" .. currentCategory .. ").")
+    yield("/echo [CosmicLeveling] Switching to " .. otherCategoryName .. " category...")
+
+    -- Find lowest level job in other category
+    local otherJob = FindLowestLevelJob(otherJobList)
+    if otherJob then
+        local switched, ranCustomMacro = SwitchToJob(otherJob.id)
+        if switched then
+            yield("/echo [CosmicLeveling] Switched to " .. otherJob.abbr .. "!")
+            if ranCustomMacro then
+                yield("/echo [CosmicLeveling] === Done (custom macro) ===")
+            end
+        end
+    end
+    return
+end
+
+-- Check if current job is enabled
+local currentJobEnabled = false
+local allJobs = {}
+for _, j in ipairs(CrafterJobs) do table.insert(allJobs, j) end
+for _, j in ipairs(GathererJobs) do table.insert(allJobs, j) end
+for _, j in ipairs(allJobs) do
+    if j.id == currentJobId and IsJobEnabled(j.abbr) then
+        currentJobEnabled = true
+        break
+    end
+end
+
+if not currentJobEnabled then
+    yield("/echo [CosmicLeveling] Current job is disabled - switching to an enabled job...")
+
+    -- Try to find an enabled job in current category first
+    local switchJob = nil
+    if #jobList > 0 then
+        switchJob = FindLowestLevelJob(jobList)
+    end
+
+    -- If no jobs in current category, try other category
+    if not switchJob and #otherJobList > 0 then
+        switchJob = FindLowestLevelJob(otherJobList)
+    end
+
+    if switchJob then
+        local switched, ranCustomMacro = SwitchToJob(switchJob.id)
+        if switched then
+            yield("/echo [CosmicLeveling] Switched to " .. switchJob.abbr .. "!")
+            if ranCustomMacro then
+                yield("/echo [CosmicLeveling] === Done (custom macro) ===")
+            end
+        else
+            yield("/echo [CosmicLeveling] ERROR: Failed to switch to " .. switchJob.abbr)
+        end
+    else
+        yield("/echo [CosmicLeveling] ERROR: No enabled jobs found to switch to!")
+    end
+    return
+end
 
 -- Process current category
 local result = ProcessCategory(jobList, currentCategory, currentLevel)
+
+-- If result is "custom_macro", custom end macro already ran - exit
+if result == "custom_macro" then
+    yield("/echo [CosmicLeveling] === Done (custom macro) ===")
+    return
+end
 
 -- If result is "continue", we stay on current job
 if result == "continue" then
@@ -689,8 +921,19 @@ if result == "continue" then
         yield("/echo [CosmicLeveling] Updating equipment (AlwaysUpdateGear enabled)...")
         yield("/ad equiprec")
         yield("/wait 2")
+    -- Or update gear if at a gear update breakpoint level
+    elseif IsAtGearUpdateBreakpoint(currentLevel) then
+        yield("/echo [CosmicLeveling] Updating equipment (at gear breakpoint level " .. currentLevel .. ")...")
+        yield("/ad equiprec")
+        yield("/wait 2")
     end
-    StartIce()
+    local ranCustomMacro = StartIce()
+    if ranCustomMacro then
+        yield("/echo [CosmicLeveling] === Done (custom macro) ===")
+    else
+        yield("/echo [CosmicLeveling] === Done ===")
+    end
+    return
 end
 
 -- If result is "compliant", all jobs at breakpoint - update equipment and continue
@@ -698,10 +941,16 @@ if result == "compliant" then
     yield("/echo [CosmicLeveling] All jobs compliant - updating equipment...")
     yield("/ad equiprec")
     yield("/wait 2")
-    StartIce()
+    local ranCustomMacro = StartIce()
+    if ranCustomMacro then
+        yield("/echo [CosmicLeveling] === Done (custom macro) ===")
+    else
+        yield("/echo [CosmicLeveling] === Done ===")
+    end
+    return
 end
 
--- If current category is complete (all at 100), check the other category
+-- If current category is complete (all at max level), check the other category
 if result == "complete" then
     yield("/echo [CosmicLeveling] Checking " .. otherCategoryName .. " category...")
 
@@ -732,7 +981,11 @@ if result == "complete" then
 
             local otherResult = ProcessCategory(otherJobList, otherCategoryName, newLevel)
 
-            if otherResult == "complete" then
+            if otherResult == "custom_macro" then
+                -- Custom macro already ran during ProcessCategory
+                yield("/echo [CosmicLeveling] === Done (custom macro) ===")
+                return
+            elseif otherResult == "complete" then
                 -- This means BOTH categories are complete (we already checked current was complete)
                 yield("/echo [CosmicLeveling] *** ALL JOBS COMPLETE! ***")
                 yield("/echo [CosmicLeveling] Both Crafters and Gatherers are at level " .. MAX_LEVEL .. "!")
@@ -740,7 +993,10 @@ if result == "complete" then
                 -- Ice already stopped from SwitchToJob, keep it stopped
             else
                 -- Other category needs work, start Ice
-                StartIce()
+                if StartIce() then
+                    yield("/echo [CosmicLeveling] === Done (custom macro) ===")
+                    return
+                end
             end
         else
             yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. otherJob.abbr)
