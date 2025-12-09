@@ -26,7 +26,7 @@ This includes:
 
 Never push functional changes without updating the docs first!
 
-### Rule #4: Verify Config Flags Affect All Relevant Code Paths
+### Rule #3: Verify Config Flags Affect All Relevant Code Paths
 **When adding or modifying config flags/options, verify they affect ALL places in the code where they should apply.**
 
 Before pushing:
@@ -40,30 +40,7 @@ Example: If adding `CustomEndMacro` that runs instead of `/ice start`:
 - Make sure each call handles the case where custom macro was run
 - Return appropriate signals so the script exits cleanly
 
-### Rule #5: "push snd" or "snd push" Command
-**When the user says "push snd" or "snd push", sync ALL local scripts to SND using the node sync tool.**
-
-Run:
-```bash
-node sync.js push
-```
-
-This pushes all Lua scripts from the local Playroom folder to SND's internal storage (the "Synced" folder in SND).
-
-### Rule #6: Use GitHub MCP for Git Operations
-**Use the GitHub MCP tools instead of bash git commands whenever possible.**
-
-Available MCP tools:
-- `mcp__github__push_files` - Push multiple files in one commit
-- `mcp__github__create_or_update_file` - Create/update a single file
-- `mcp__github__list_commits` - View commit history
-- `mcp__github__get_file_contents` - Read files from repo
-- `mcp__github__create_pull_request` - Create PRs
-- `mcp__github__create_branch` - Create branches
-
-Use these instead of `git add`, `git commit`, `git push`, etc.
-
-### Rule #3: Generate Discord Questions for Unknown Issues
+### Rule #4: Generate Discord Questions for Unknown Issues
 **When debugging fails repeatedly and you identify something you don't know about the SND API, generate a copy/paste ready question for Discord.**
 
 Format the question like this:
@@ -91,6 +68,29 @@ Format the question like this:
 
 This helps get accurate answers from the SND community when documentation is unclear.
 
+### Rule #5: "push snd" or "snd push" Command
+**When the user says "push snd" or "snd push", sync ALL local scripts to SND using the node sync tool.**
+
+Run:
+```bash
+node sync.js push
+```
+
+This pushes all Lua scripts from the local Playroom folder to SND's internal storage (the "Synced" folder in SND).
+
+### Rule #6: Use GitHub MCP for Git Operations
+**Use the GitHub MCP tools instead of bash git commands whenever possible.**
+
+Available MCP tools:
+- `mcp__github__push_files` - Push multiple files in one commit
+- `mcp__github__create_or_update_file` - Create/update a single file
+- `mcp__github__list_commits` - View commit history
+- `mcp__github__get_file_contents` - Read files from repo
+- `mcp__github__create_pull_request` - Create PRs
+- `mcp__github__create_branch` - Create branches
+
+Use these instead of `git add`, `git commit`, `git push`, etc.
+
 ---
 
 ## Skills Documentation
@@ -113,6 +113,7 @@ Detailed documentation is organized into modular skills in `.claude/skills/`:
 | **snd-autoretainer** | Retainer management using AutoRetainer plugin |
 | **snd-combat** | Combat/rotation plugin integration (BossMod, RSR, Wrath) |
 | **snd-textadvance** | Automatic dialog/cutscene advancement using TextAdvance plugin |
+| **snd-questionable** | Quest automation using Questionable plugin |
 
 ### Content Automation
 | Skill | Description |
@@ -287,5 +288,6 @@ For complete documentation, see the individual skill files:
 ├── snd-combat/SKILL.md       # Combat plugins
 ├── snd-textadvance/SKILL.md  # Dialog automation
 ├── snd-fates/SKILL.md        # FATE farming
-└── snd-ice/SKILL.md          # Cosmic Exploration (Ice plugin)
+├── snd-ice/SKILL.md          # Cosmic Exploration (Ice plugin)
+└── snd-questionable/SKILL.md # Quest automation (Questionable plugin)
 ```
