@@ -50,6 +50,19 @@ node sync.js push
 
 This pushes all Lua scripts from the local Playroom folder to SND's internal storage (the "Synced" folder in SND).
 
+### Rule #6: Use GitHub MCP for Git Operations
+**Use the GitHub MCP tools instead of bash git commands whenever possible.**
+
+Available MCP tools:
+- `mcp__github__push_files` - Push multiple files in one commit
+- `mcp__github__create_or_update_file` - Create/update a single file
+- `mcp__github__list_commits` - View commit history
+- `mcp__github__get_file_contents` - Read files from repo
+- `mcp__github__create_pull_request` - Create PRs
+- `mcp__github__create_branch` - Create branches
+
+Use these instead of `git add`, `git commit`, `git push`, etc.
+
 ### Rule #3: Generate Discord Questions for Unknown Issues
 **When debugging fails repeatedly and you identify something you don't know about the SND API, generate a copy/paste ready question for Discord.**
 
