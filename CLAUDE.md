@@ -26,6 +26,30 @@ This includes:
 
 Never push functional changes without updating the docs first!
 
+### Rule #4: Verify Config Flags Affect All Relevant Code Paths
+**When adding or modifying config flags/options, verify they affect ALL places in the code where they should apply.**
+
+Before pushing:
+1. Search for all usages of the feature the flag controls
+2. Ensure every code path respects the flag
+3. Check edge cases (e.g., nested function calls, early returns)
+4. If a function returns a value that signals special behavior (like "custom macro ran"), ensure all callers handle it
+
+Example: If adding `CustomEndMacro` that runs instead of `/ice start`:
+- Find ALL places that call `StartIce()`
+- Make sure each call handles the case where custom macro was run
+- Return appropriate signals so the script exits cleanly
+
+### Rule #5: "push snd" or "snd push" Command
+**When the user says "push snd" or "snd push", sync ALL local scripts to SND using the node sync tool.**
+
+Run:
+```bash
+node sync.js push
+```
+
+This pushes all Lua scripts from the local Playroom folder to SND's internal storage (the "Synced" folder in SND).
+
 ### Rule #3: Generate Discord Questions for Unknown Issues
 **When debugging fails repeatedly and you identify something you don't know about the SND API, generate a copy/paste ready question for Discord.**
 

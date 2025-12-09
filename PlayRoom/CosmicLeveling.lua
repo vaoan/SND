@@ -177,15 +177,19 @@ Edge cases handled:
 
 CUSTOM END MACRO:
 -----------------
-Instead of starting Ice at the end, you can run a custom macro/command.
-Set "CustomEndMacro" to any command (e.g., "/snd run MyOtherScript").
+Normally this script ends by running "/ice start". If you set CustomEndMacro,
+it will run YOUR command instead of "/ice start".
 
-When CustomEndMacro is set:
-- The script runs your custom command instead of "/ice start"
-- The script exits immediately after (does not continue)
-- Useful for chaining scripts or running different automation
+Everything else works exactly the same - all the job checking, switching,
+gear updates, etc. happen normally. The ONLY difference is the very last
+command that runs.
 
-Leave empty for normal Ice behavior.
+Example: CustomEndMacro = "/snd run MyOtherScript"
+- Script checks jobs, switches if needed, updates gear... (all normal)
+- Instead of "/ice start", it runs "/snd run MyOtherScript"
+- Done
+
+Leave empty for normal behavior (ends with "/ice start").
 
 EXAMPLE FLOW (Catch-up Mode):
 -----------------------------
