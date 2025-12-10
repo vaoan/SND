@@ -3,6 +3,14 @@
     "github": {
       "command": "node",
       "args": [".claude/tools/github-mcp.mjs"]
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-server-sqlite-npx",
+        "Z:\\Users\\Heiner\\Documents\\Juegos\\FFXIV\\Profiles\\Me\\XIVLauncher\\pluginConfigs\\ChatTwo\\chat-sqlite.db"
+      ]
     }
   }
 }

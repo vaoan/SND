@@ -1,17 +1,20 @@
 --[=====[
 [[SND Metadata]]
 author: 'Heiner'
-version: 1.0.0
+version: 1.0.1
 description: Cycles through all Crafters and Gatherers and updates their gear with recommended equipment
 plugin_dependencies:
 - AutoDuty
 [[End Metadata]]
 --]=====]
 
+-- Script Version (keep in sync with metadata!)
+local SCRIPT_VERSION = "1.0.1"
+
 --[[
 ================================================================================
                             UPDATE ALL GEAR
-                              Version 1.0.0
+                              Version 1.0.1
 ================================================================================
 
 Simple utility script that cycles through all Crafter (DoH) and Gatherer (DoL)
@@ -85,7 +88,7 @@ local function IsBlockedFromSwitching()
            Svc.Condition[CharacterCondition.boundByDuty95]
 end
 
--- Switch to a job and update gear (retries until successful)
+-- Switch to a job and update gear (retries until successful, with timeout)
 local function UpdateJobGear(job)
     local uiSlot, gsName = FindGearsetSlot(job.id)
 
@@ -96,11 +99,14 @@ local function UpdateJobGear(job)
 
     yield("/echo [UpdateAllGear] Switching to " .. job.abbr .. " (" .. gsName .. ")...")
 
-    -- Keep trying until we successfully switch
-    while true do
+    -- Keep trying until we successfully switch (with timeout)
+    local maxAttempts = 60  -- Max 60 attempts (~2 minutes with waits)
+    local attempt = 0
+    while attempt < maxAttempts do
+        attempt = attempt + 1
         -- Wait if blocked
         if IsBlockedFromSwitching() then
-            yield("/echo [UpdateAllGear] Waiting for blocking condition to clear...")
+            yield("/echo [UpdateAllGear] Waiting for blocking condition to clear... (attempt " .. attempt .. ")")
             yield("/wait 1")
         else
             -- Try to switch
@@ -116,15 +122,18 @@ local function UpdateJobGear(job)
                 yield("/wait 2")
                 return true
             else
-                yield("/echo [UpdateAllGear] Switch failed, retrying...")
+                yield("/echo [UpdateAllGear] Switch failed, retrying... (attempt " .. attempt .. ")")
                 yield("/wait 1")
             end
         end
     end
+
+    yield("/echo [UpdateAllGear] ERROR: Failed to switch to " .. job.abbr .. " after " .. maxAttempts .. " attempts")
+    return false
 end
 
 -- Main Logic
-yield("/echo [UpdateAllGear] === Updating All Crafter/Gatherer Gear ===")
+yield("/echo [UpdateAllGear] === Updating All Crafter/Gatherer Gear v" .. SCRIPT_VERSION .. " ===")
 
 -- Check player availability
 if not Player.Available then
