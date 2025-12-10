@@ -78,7 +78,12 @@ node sync.js push
 
 This pushes all Lua scripts from the local Playroom folder to SND's internal storage (the "Synced" folder in SND).
 
-### Rule #6: Use GitHub MCP for Git Operations
+### Rule #6: Always Push to SND After Script Changes
+**After making any changes to Lua scripts, ALWAYS run `node sync.js push` to sync to SND without asking.**
+
+Don't ask "Want me to push?" - just push automatically after any script modification.
+
+### Rule #7: Use GitHub MCP for Git Operations
 **Use the GitHub MCP tools instead of bash git commands whenever possible.**
 
 Available MCP tools:
@@ -120,6 +125,11 @@ Detailed documentation is organized into modular skills in `.claude/skills/`:
 |-------|-------------|
 | **snd-fates** | FATE farming patterns, targeting, level sync, participation loops |
 | **snd-ice** | Cosmic Exploration automation using Ice plugin |
+
+### Maintenance
+| Skill | Description |
+|-------|-------------|
+| **snd-audit** | Codebase audit procedures for consistency, bugs, and documentation |
 
 ---
 
@@ -289,5 +299,6 @@ For complete documentation, see the individual skill files:
 ├── snd-textadvance/SKILL.md  # Dialog automation
 ├── snd-fates/SKILL.md        # FATE farming
 ├── snd-ice/SKILL.md          # Cosmic Exploration (Ice plugin)
-└── snd-questionable/SKILL.md # Quest automation (Questionable plugin)
+├── snd-questionable/SKILL.md # Quest automation (Questionable plugin)
+└── snd-audit/SKILL.md        # Codebase audit procedures
 ```

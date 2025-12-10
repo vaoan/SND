@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Heiner'
-version: 2.11.0
+version: 2.12.1
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters, gear updates at configurable levels
 plugin_dependencies:
 - AutoDuty
@@ -23,7 +23,7 @@ configs:
     description: Target level cap for all jobs (default 100)
     default: 100
     min: 50
-    max: 100
+    max: 999
   CompletedCharacters:
     description: Comma-separated list of completed characters (Name@Server format). Auto-populated when a character finishes all jobs.
     default: ""
@@ -75,7 +75,7 @@ configs:
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.11.0
+                                  Version 2.12.1
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -506,8 +506,12 @@ local function GetNextBreakpoint(level)
     return MAX_LEVEL  -- Max level if past all breakpoints
 end
 
--- Helper: Check if level is exactly at a breakpoint
+-- Helper: Check if level is exactly at a breakpoint (includes MAX_LEVEL)
 local function IsAtExactBreakpoint(level)
+    -- Max level counts as a breakpoint
+    if level >= MAX_LEVEL then
+        return true, MAX_LEVEL
+    end
     for _, bp in ipairs(BREAKPOINTS) do
         if level == bp then
             return true, bp
@@ -724,7 +728,12 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
             return "continue"
         end
 
-        yield("/echo [CosmicLeveling] [Strict] Hit breakpoint " .. exactBP .. "! Checking other " .. categoryName .. " jobs...")
+        -- Different message for max level vs regular breakpoint
+        if exactBP >= MAX_LEVEL then
+            yield("/echo [CosmicLeveling] [Strict] Congratulations! Reached max level " .. MAX_LEVEL .. "! Looking for next job to level...")
+        else
+            yield("/echo [CosmicLeveling] [Strict] Hit breakpoint " .. exactBP .. "! Checking other " .. categoryName .. " jobs...")
+        end
 
         local nextJob = FindLowestJobBelowBreakpoint(jobList, exactBP)
 
@@ -744,14 +753,25 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
                 return "continue"
             end
         else
-            local nextBP = GetNextBreakpoint(currentLevel)
-            yield("/echo [CosmicLeveling] All " .. categoryName .. "s at " .. exactBP .. "+! Continue to next breakpoint: " .. nextBP)
-            return "compliant"  -- All jobs at breakpoint, trigger equipment update
+            -- All jobs compliant - different message if all at max vs at breakpoint
+            if exactBP >= MAX_LEVEL then
+                yield("/echo [CosmicLeveling] All " .. categoryName .. "s at max level " .. MAX_LEVEL .. "!")
+                return "complete"  -- All jobs at max, trigger category switch
+            else
+                local nextBP = GetNextBreakpoint(currentLevel)
+                yield("/echo [CosmicLeveling] All " .. categoryName .. "s at " .. exactBP .. "+! Continue to next breakpoint: " .. nextBP)
+                return "compliant"  -- All jobs at breakpoint, trigger equipment update
+            end
         end
 
     -- MODE: CATCH-UP - Always check all jobs for compliance
     else
-        yield("/echo [CosmicLeveling] [Catch-up] Checking all " .. categoryName .. " jobs for breakpoint compliance...")
+        -- Show congratulations if at max level
+        if currentLevel >= MAX_LEVEL then
+            yield("/echo [CosmicLeveling] [Catch-up] Congratulations! Reached max level " .. MAX_LEVEL .. "! Looking for next job to level...")
+        else
+            yield("/echo [CosmicLeveling] [Catch-up] Checking all " .. categoryName .. " jobs for breakpoint compliance...")
+        end
 
         local behindJob, targetBP = FindJobBehindBreakpoint(jobList, currentLevel)
 
@@ -771,10 +791,16 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
                 return "continue"
             end
         else
-            local nextBP = GetNextBreakpoint(currentLevel)
-            yield("/echo [CosmicLeveling] All " .. categoryName .. "s compliant with current progress!")
-            yield("/echo [CosmicLeveling] Continue leveling to next breakpoint: " .. nextBP)
-            return "compliant"  -- All jobs compliant, trigger equipment update
+            -- All jobs compliant - different message if all at max vs at breakpoint
+            if currentLevel >= MAX_LEVEL then
+                yield("/echo [CosmicLeveling] All " .. categoryName .. "s at max level " .. MAX_LEVEL .. "!")
+                return "complete"  -- All jobs at max, trigger category switch
+            else
+                yield("/echo [CosmicLeveling] All " .. categoryName .. "s compliant with current progress!")
+                local nextBP = GetNextBreakpoint(currentLevel)
+                yield("/echo [CosmicLeveling] Continue leveling to next breakpoint: " .. nextBP)
+                return "compliant"  -- All jobs compliant, trigger equipment update
+            end
         end
     end
 end
