@@ -1,0 +1,21 @@
+Windows Registry Editor Version 5.00
+
+; Remove old CMD entries
+[-HKEY_CLASSES_ROOT\Directory\Background\shell\OpenCmdAdmin]
+[-HKEY_CLASSES_ROOT\Directory\shell\OpenCmdAdmin]
+
+; Context menu for folder background (right-click in empty space)
+[HKEY_CLASSES_ROOT\Directory\Background\shell\OpenTerminalAdmin]
+@="Open Windows Terminal here as Admin"
+"Icon"="wt.exe"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\OpenTerminalAdmin\command]
+@="pwsh -WindowStyle Hidden -Command \"Start-Process wt -ArgumentList '-d \\\"%V\\\"' -Verb RunAs\""
+
+; Context menu for folders (right-click on a folder)
+[HKEY_CLASSES_ROOT\Directory\shell\OpenTerminalAdmin]
+@="Open Windows Terminal here as Admin"
+"Icon"="wt.exe"
+
+[HKEY_CLASSES_ROOT\Directory\shell\OpenTerminalAdmin\command]
+@="pwsh -WindowStyle Hidden -Command \"Start-Process wt -ArgumentList '-d \\\"%V\\\"' -Verb RunAs\""
