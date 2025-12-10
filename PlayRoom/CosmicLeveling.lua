@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Heiner'
-version: 2.12.1
+version: 2.13.3
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters, gear updates at configurable levels
 plugin_dependencies:
 - AutoDuty
@@ -75,7 +75,7 @@ configs:
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.12.1
+                                  Version 2.13.3
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -221,6 +221,9 @@ REQUIREMENTS:
 
 ================================================================================
 ]]
+
+-- Script Version (keep in sync with metadata!)
+local SCRIPT_VERSION = "2.13.3"
 
 -- Job Categories
 -- Crafters (DoH - Disciples of Hand): IDs 8-15
@@ -535,23 +538,38 @@ local function FindJobBehindBreakpoint(jobList, referenceLevel)
     local behindLevel = referenceBP
     local targetBP = nil
 
+    -- Build list of checkpoints: all breakpoints PLUS MAX_LEVEL
+    -- This ensures we catch jobs that are behind MAX_LEVEL when reference is at max
+    local checkpoints = {}
+    for _, bp in ipairs(BREAKPOINTS) do
+        table.insert(checkpoints, bp)
+    end
+    -- Add MAX_LEVEL if not already in breakpoints
+    local hasMaxLevel = false
+    for _, bp in ipairs(BREAKPOINTS) do
+        if bp == MAX_LEVEL then hasMaxLevel = true break end
+    end
+    if not hasMaxLevel then
+        table.insert(checkpoints, MAX_LEVEL)
+    end
+
     for _, job in ipairs(jobList) do
         local jobData = Player.GetJob(job.id)
         if jobData and jobData.Level then
             local level = jobData.Level
             DebugLog(job.abbr .. " is Lv." .. level)
-            -- Check if this job is behind any breakpoint that the reference has passed
-            for _, bp in ipairs(BREAKPOINTS) do
+            -- Check if this job is behind any checkpoint that the reference has passed
+            for _, bp in ipairs(checkpoints) do
                 if referenceLevel >= bp and level < bp then
-                    -- This job hasn't reached a breakpoint that reference has passed
-                    DebugLog(job.abbr .. " is BEHIND breakpoint " .. bp .. " (current: " .. level .. ")")
+                    -- This job hasn't reached a checkpoint that reference has passed
+                    DebugLog(job.abbr .. " is BEHIND checkpoint " .. bp .. " (current: " .. level .. ")")
                     if level < behindLevel or (behindJob == nil) then
                         behindLevel = level
                         -- Create a copy to avoid mutating the original job table
                         behindJob = { id = job.id, abbr = job.abbr, name = job.name, level = level }
                         targetBP = bp
                     end
-                    break  -- Found the first breakpoint this job is behind on
+                    break  -- Found the first checkpoint this job is behind on
                 end
             end
         end
@@ -791,8 +809,30 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
                 return "continue"
             end
         else
+            -- No job behind a breakpoint - but if we're below ALL breakpoints,
+            -- we should still switch to the lowest level job in the category
+            local referenceBP = GetReachedBreakpoint(currentLevel)
+            if not referenceBP then
+                -- Below all breakpoints - find lowest level job to ensure even leveling
+                local lowestJob = FindLowestLevelJob(jobList)
+                if lowestJob and lowestJob.level < currentLevel then
+                    yield("/echo [CosmicLeveling] Found lower level job: " .. lowestJob.abbr .. " at Lv." .. lowestJob.level)
+                    local switched, ranCustomMacro = SwitchToJob(lowestJob.id)
+                    if switched then
+                        yield("/echo [CosmicLeveling] Switched to " .. lowestJob.abbr .. "! Level to first breakpoint: 50")
+                        if ranCustomMacro then return "custom_macro" end
+                        return "switched"
+                    else
+                        yield("/echo [CosmicLeveling] ERROR: No gearset found for " .. lowestJob.abbr)
+                        return "continue"
+                    end
+                end
+            end
+
             -- All jobs compliant - different message if all at max vs at breakpoint
-            if currentLevel >= MAX_LEVEL then
+            -- IMPORTANT: Must check AllJobsAtMax, not just currentLevel >= MAX_LEVEL
+            -- because other jobs might be at breakpoint (e.g., 91) but not at max (100)
+            if AllJobsAtMax(jobList) then
                 yield("/echo [CosmicLeveling] All " .. categoryName .. "s at max level " .. MAX_LEVEL .. "!")
                 return "complete"  -- All jobs at max, trigger category switch
             else
@@ -806,7 +846,7 @@ local function ProcessCategory(jobList, categoryName, currentLevel)
 end
 
 -- Main Logic
-yield("/echo [CosmicLeveling] === Cosmic Exploration Auto-Leveling ===")
+yield("/echo [CosmicLeveling] === Cosmic Exploration Auto-Leveling v" .. SCRIPT_VERSION .. " ===")
 
 -- Check player availability
 if not Player.Available then
