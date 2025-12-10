@@ -6,7 +6,10 @@ description: Test script to check Questionable IPC and quest status
 [[End Metadata]]
 --]=====]
 
-yield("/echo [TestQuestionable] === Testing Questionable IPC ===")
+-- Script Version (keep in sync with metadata!)
+local SCRIPT_VERSION = "1.0.0"
+
+yield("/echo [TestQuestionable] === Testing Questionable IPC v" .. SCRIPT_VERSION .. " ===")
 
 -- Check if IPC exists
 if not IPC then

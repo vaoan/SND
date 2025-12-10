@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Heiner'
-version: 2.13.3
+version: 2.13.4
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters, gear updates at configurable levels
 plugin_dependencies:
 - AutoDuty
@@ -75,7 +75,7 @@ configs:
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.13.3
+                                  Version 2.13.4
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -223,7 +223,7 @@ REQUIREMENTS:
 ]]
 
 -- Script Version (keep in sync with metadata!)
-local SCRIPT_VERSION = "2.13.3"
+local SCRIPT_VERSION = "2.13.4"
 
 -- Job Categories
 -- Crafters (DoH - Disciples of Hand): IDs 8-15
@@ -448,7 +448,7 @@ local function ParseGearUpdateBreakpoints(str)
 
     for num in string.gmatch(str, "([^,]+)") do
         local level = tonumber(num:match("^%s*(.-)%s*$"))  -- Trim whitespace
-        if level and level >= 1 and level <= 100 then
+        if level and level >= 1 and level <= MAX_LEVEL then
             table.insert(breakpoints, level)
         end
     end
@@ -579,7 +579,11 @@ local function FindJobBehindBreakpoint(jobList, referenceLevel)
 end
 
 -- Helper: Check if all jobs in a list are at max level
+-- Returns false for empty lists (can't be "all at max" if there are no jobs)
 local function AllJobsAtMax(jobList)
+    if #jobList == 0 then
+        return false  -- Empty list is not "all at max"
+    end
     for _, job in ipairs(jobList) do
         local jobData = Player.GetJob(job.id)
         if jobData and jobData.Level then
@@ -594,7 +598,7 @@ end
 -- Helper: Find the lowest level job in a list (for switching categories)
 local function FindLowestLevelJob(jobList)
     local lowestJob = nil
-    local lowestLevel = 101
+    local lowestLevel = MAX_LEVEL + 1  -- Use MAX_LEVEL instead of hardcoded 101
 
     for _, job in ipairs(jobList) do
         local jobData = Player.GetJob(job.id)

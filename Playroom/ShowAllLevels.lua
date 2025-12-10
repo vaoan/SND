@@ -6,7 +6,10 @@ description: Displays all job/class levels for the current character
 [[End Metadata]]
 --]=====]
 
-yield("/echo [ShowAllLevels] === Character Job Levels ===")
+-- Script Version (keep in sync with metadata!)
+local SCRIPT_VERSION = "2.0.0"
+
+yield("/echo [ShowAllLevels] === Character Job Levels v" .. SCRIPT_VERSION .. " ===")
 
 -- Get ClassJob sheet for names
 local classJobSheet = Excel.GetSheet("ClassJob")

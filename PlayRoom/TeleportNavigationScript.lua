@@ -31,6 +31,9 @@ configs:
 [[End Metadata]]
 --]=====]
 
+-- Script Version (keep in sync with metadata!)
+local SCRIPT_VERSION = "1.8.3"
+
 -- Character condition constants
 local CharacterCondition = {
     casting = 27,
@@ -532,7 +535,7 @@ function ExecuteWalkingNavigation()
 end
 
 -- Main execution
-yield("/echo [TeleportNav] Teleportation and Navigation Script v1.8.3")
+yield("/echo [TeleportNav] === Teleportation and Navigation Script v" .. SCRIPT_VERSION .. " ===")
 yield("/echo [TeleportNav] *** UPDATED CODE - NO STATE MACHINE - LINEAR EXECUTION ***")
 yield("/echo [TeleportNav] *** NEW: HYBRID APPROACH - API + HARDCODED MAPPING ***")
 yield("/echo [TeleportNav] Target: " .. TargetLocation .. " at (" .. TargetX .. ", " .. TargetY .. ", " .. TargetZ .. ")")

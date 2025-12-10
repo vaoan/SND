@@ -126,10 +126,11 @@ Detailed documentation is organized into modular skills in `.claude/skills/`:
 | **snd-fates** | FATE farming patterns, targeting, level sync, participation loops |
 | **snd-ice** | Cosmic Exploration automation using Ice plugin |
 
-### Maintenance
+### Maintenance & Debugging
 | Skill | Description |
 |-------|-------------|
-| **snd-audit** | Codebase audit procedures for consistency, bugs, and documentation |
+| **audit** | Codebase audit procedures for consistency, bugs, and documentation |
+| **chattwo-debug** | Reading ChatTwo chat logs as a debug console for bug analysis |
 
 ---
 
@@ -300,5 +301,6 @@ For complete documentation, see the individual skill files:
 ├── snd-fates/SKILL.md        # FATE farming
 ├── snd-ice/SKILL.md          # Cosmic Exploration (Ice plugin)
 ├── snd-questionable/SKILL.md # Quest automation (Questionable plugin)
-└── snd-audit/SKILL.md        # Codebase audit procedures
+├── audit/SKILL.md            # Codebase audit procedures
+└── chattwo-debug/SKILL.md    # ChatTwo debug console
 ```

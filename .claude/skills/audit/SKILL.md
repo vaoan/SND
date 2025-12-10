@@ -128,6 +128,154 @@ For each script, perform a detailed code review:
 - [ ] Success/failure states are correctly reported
 - [ ] Edge cases handled consistently (max level, empty config, disabled options)
 
+## Deep Code Review Process
+
+When auditing a script, perform this systematic deep review:
+
+### Step 1: Read the Entire Script
+
+Read the complete script file. Don't skim - read every line to understand:
+- The overall flow and purpose
+- All helper functions and what they do
+- How state/data flows through the script
+- What config options affect behavior
+
+### Step 2: Check for Hardcoded Values vs Config
+
+Search for hardcoded numbers that should reference config:
+
+```lua
+-- ❌ BUG: Hardcoded 100 when MAX_LEVEL is configurable
+if level <= 100 then  -- Should be MAX_LEVEL
+
+-- ❌ BUG: Hardcoded 101 as sentinel value
+local lowestLevel = 101  -- Should be MAX_LEVEL + 1
+
+-- ✅ CORRECT: Uses config value
+if level <= MAX_LEVEL then
+local lowestLevel = MAX_LEVEL + 1
+```
+
+**Check pattern:** If a config like `MaxLevel` exists, search for all numeric literals that might need to use it instead.
+
+### Step 3: Check Empty Collection Edge Cases
+
+For any function that iterates over a list and returns a boolean or "found" result:
+
+```lua
+-- ❌ BUG: Returns true for empty list
+function AllItemsValid(list)
+    for _, item in ipairs(list) do
+        if not IsValid(item) then return false end
+    end
+    return true  -- Returns true if list is empty!
+end
+
+-- ✅ CORRECT: Handle empty list explicitly
+function AllItemsValid(list)
+    if #list == 0 then return false end  -- Can't be "all valid" if none exist
+    for _, item in ipairs(list) do
+        if not IsValid(item) then return false end
+    end
+    return true
+end
+```
+
+**Check pattern:** Every `for` loop that returns `true` at the end should consider what happens with an empty input.
+
+### Step 4: Trace All Return Values
+
+For functions that return status codes or multiple values:
+
+1. List all possible return values
+2. Find all call sites
+3. Verify each call site handles ALL possible returns
+
+```lua
+-- Function returns: "switched", "complete", "continue", "compliant", "custom_macro"
+local result = ProcessCategory(...)
+
+-- ❌ BUG: Missing handler for "switched" case
+if result == "custom_macro" then
+    -- handle
+elseif result == "continue" then
+    -- handle
+elseif result == "compliant" then
+    -- handle
+elseif result == "complete" then
+    -- handle
+end
+-- "switched" falls through silently!
+
+-- ✅ CORRECT: All cases handled (or intentional fall-through documented)
+```
+
+### Step 5: Verify Boundary Conditions
+
+Check all comparisons involving configurable limits:
+
+```lua
+-- If MAX_LEVEL = 100, what happens at exactly level 100?
+if level < MAX_LEVEL then   -- Level 100 is NOT included
+if level <= MAX_LEVEL then  -- Level 100 IS included
+if level >= MAX_LEVEL then  -- Level 100 triggers this
+
+-- ❌ BUG: Off-by-one in breakpoint list
+local checkpoints = {50, 63, 71, 81, 91}  -- Missing MAX_LEVEL!
+-- Jobs at 91 won't be detected as "behind" when reference is at 100
+
+-- ✅ CORRECT: Include MAX_LEVEL in checkpoint list
+local checkpoints = {50, 63, 71, 81, 91, MAX_LEVEL}
+```
+
+### Step 6: Check Message Accuracy
+
+Verify output messages match the actual condition:
+
+```lua
+-- ❌ BUG: Message says "continue to 100" when already AT 100
+if currentLevel >= MAX_LEVEL then
+    yield("/echo Continue leveling to " .. MAX_LEVEL)  -- Wrong!
+
+-- ✅ CORRECT: Different message at max level
+if currentLevel >= MAX_LEVEL then
+    yield("/echo Already at max level!")
+else
+    yield("/echo Continue leveling to " .. GetNextBreakpoint(currentLevel))
+end
+```
+
+### Step 7: Document Findings in Table Format
+
+Create a findings table:
+
+```markdown
+| Location | Issue | Severity | Fix |
+|----------|-------|----------|-----|
+| Line 451 | Hardcoded `100` instead of `MAX_LEVEL` | Medium | Changed to `MAX_LEVEL` |
+| Line 597 | Sentinel `101` instead of `MAX_LEVEL + 1` | Medium | Changed to `MAX_LEVEL + 1` |
+| Line 583 | `AllJobsAtMax([])` returns `true` for empty | High | Added empty check |
+```
+
+Severity levels:
+- **High**: Can cause incorrect behavior, data corruption, or script failure
+- **Medium**: Logic inconsistency that may cause wrong decisions
+- **Low**: Minor issues like missing messages or cosmetic problems
+
+### Step 8: Quality Assessment Summary
+
+After review, create a quality assessment:
+
+```markdown
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Timeout Protection | ✓ | All waits have timeouts |
+| Nil Access Protection | ✓ | Proper checks before access |
+| Edge Case Handling | Fixed | Empty list case was missing |
+| Documentation Accuracy | ✓ | HOW IT WORKS matches code |
+| Config Consistency | Fixed | Hardcoded values replaced |
+```
+
 ### Architecture Compliance Checks (from script-architecture.md)
 
 **Rule 1: State Machine Architecture:**
@@ -552,6 +700,77 @@ end
 2. Extract into helper function with parameters
 3. Replace duplicates with function calls
 4. Ensure function handles all variations
+
+## Real Bug Examples (From Actual Audits)
+
+These are real bugs found during code reviews - use as reference patterns:
+
+### CosmicLeveling v2.13.3 → v2.13.4
+
+**Bug 1: Hardcoded max level in gear update parsing**
+```lua
+-- ❌ BUG (line 451): Hardcoded 100 when MAX_LEVEL can be 999
+if level and level >= 1 and level <= 100 then
+
+-- ✅ FIX: Use MAX_LEVEL config value
+if level and level >= 1 and level <= MAX_LEVEL then
+```
+
+**Bug 2: Hardcoded sentinel value**
+```lua
+-- ❌ BUG (line 597): Hardcoded 101 fails if MAX_LEVEL > 100
+local lowestLevel = 101
+
+-- ✅ FIX: Use MAX_LEVEL + 1
+local lowestLevel = MAX_LEVEL + 1
+```
+
+**Bug 3: Empty list returns wrong value**
+```lua
+-- ❌ BUG (lines 581-592): AllJobsAtMax([]) returns true
+local function AllJobsAtMax(jobList)
+    for _, job in ipairs(jobList) do
+        -- checks...
+    end
+    return true  -- True for empty list!
+end
+
+-- ✅ FIX: Check for empty list first
+local function AllJobsAtMax(jobList)
+    if #jobList == 0 then
+        return false  -- Can't be "all at max" if there are none
+    end
+    for _, job in ipairs(jobList) do
+        -- checks...
+    end
+    return true
+end
+```
+
+### CosmicLeveling v2.13.2 → v2.13.3
+
+**Bug: MAX_LEVEL not included in breakpoint checks**
+```lua
+-- ❌ BUG: Only checked BREAKPOINTS {50,63,71,81,91}, not MAX_LEVEL
+-- Jobs at level 91 weren't detected as "behind" when reference at 100
+for _, bp in ipairs(BREAKPOINTS) do
+    if referenceLevel >= bp and level < bp then
+        -- found behind job
+    end
+end
+
+-- ✅ FIX: Build checkpoints list including BREAKPOINTS + MAX_LEVEL
+local checkpoints = {}
+for _, bp in ipairs(BREAKPOINTS) do
+    table.insert(checkpoints, bp)
+end
+if not hasMaxLevel then
+    table.insert(checkpoints, MAX_LEVEL)
+end
+for _, bp in ipairs(checkpoints) do
+    -- now checks against MAX_LEVEL too
+end
+```
 
 ## Post-Audit Actions
 

@@ -22,6 +22,9 @@ configs:
 [[End Metadata]]
 --]=====]
 
+-- Script Version (keep in sync with metadata!)
+local SCRIPT_VERSION = "1.4.1"
+
 -- Version Fingerprint: v1.4.1-20240115-143022-hij456
 -- Generated: 2024-01-15 14:30:22
 -- Hash: hij456klm789012
@@ -1236,7 +1239,7 @@ MappingState.complete = Complete
 State = MappingState.ready
 
 -- Main execution
-yield("/echo [TeleportMapper] FFXIV Teleportation Mapper v1.4.1")
+yield("/echo [TeleportMapper] === FFXIV Teleportation Mapper v" .. SCRIPT_VERSION .. " ===")
 yield("/echo [TeleportMapper] This script will visit every teleportable location in FFXIV")
 yield("/echo [TeleportMapper] and collect map IDs for comprehensive mapping data")
 yield("/echo [TeleportMapper] Data will be saved to: " .. OutputFile)
