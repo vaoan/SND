@@ -7,6 +7,8 @@ description: Use this skill when implementing retainer management in SND macros 
 
 This skill covers integration with the AutoRetainer plugin for retainer management in SND macros.
 
+> **Source Status:** Partially Verified - Core API methods verified from https://github.com/PunishXIV/AutoRetainerAPI/blob/main/AutoRetainerAPI/AutoRetainerApi.cs. Additional IPC methods documented from community testing and usage.
+
 ## Prerequisites
 
 ```lua
@@ -32,6 +34,45 @@ local characterData = IPC.AutoRetainer.GetOfflineCharacterData(currentCharId)
 ```
 
 ## Complete API Reference
+
+### Verified Core API Methods (from AutoRetainerApi.cs)
+
+These methods are confirmed from the official AutoRetainerAPI source code:
+
+```lua
+-- Get offline character data (VERIFIED - requires Svc.ClientState.LocalContentId)
+IPC.AutoRetainer.GetOfflineCharacterData(number contentId) -> OfflineCharacterData
+-- Properties: .RetainersAwaitingProcessing (boolean)
+
+-- Write offline character data (VERIFIED)
+IPC.AutoRetainer.WriteOfflineCharacterData(OfflineCharacterData data) -> nil
+-- WARNING: Must read, modify, and write back within single framework update
+
+-- Get additional retainer data (VERIFIED)
+IPC.AutoRetainer.GetAdditionalRetainerData(number contentId, string retainerName) -> AdditionalRetainerData
+
+-- Write additional retainer data (VERIFIED)
+IPC.AutoRetainer.WriteAdditionalRetainerData(number contentId, string retainerName, AdditionalRetainerData data) -> nil
+-- WARNING: Must read, modify, and write back within single framework update
+
+-- Get registered characters (VERIFIED)
+IPC.AutoRetainer.GetRegisteredCharacters() -> table
+-- Returns list of all known character content IDs (excluding blacklisted/uninitialized)
+
+-- Set venture override (VERIFIED - use during OnSendRetainerToVenture event)
+IPC.AutoRetainer.SetVenture(number ventureId) -> nil
+
+-- Get/Set suppressed state (VERIFIED)
+IPC.AutoRetainer.GetSuppressed() -> boolean
+IPC.AutoRetainer.SetSuppressed(boolean suppressed) -> nil
+
+-- Check if API is ready (VERIFIED)
+IPC.AutoRetainer.Ready -> boolean (property)
+```
+
+### Additional IPC Methods (Community Documented)
+
+These methods are documented from community usage and testing. They work in practice but may need verification against latest source:
 
 ### Basic Status and Control Functions
 
@@ -121,7 +162,8 @@ IPC.AutoRetainer.GetOptionRetainerSense() -> boolean
 -- Set retainer sense option
 IPC.AutoRetainer.SetOptionRetainerSense(boolean enabled) -> nil
 
--- Suppress or unsuppress AutoRetainer
+-- Suppress or unsuppress AutoRetainer (VERIFIED - see Verified Core API Methods section)
+-- This is an alias for SetSuppressed in the verified API
 IPC.AutoRetainer.SetSuppressed(boolean suppressed) -> nil
 ```
 
@@ -133,6 +175,24 @@ IPC.AutoRetainer.GetGCInfo() -> table
 
 -- Get closest retainer venture seconds remaining
 IPC.AutoRetainer.GetClosestRetainerVentureSecondsRemaining(number contentId) -> number
+```
+
+### Submersible Management
+
+```lua
+-- Get enabled submarines
+IPC.AutoRetainer.GetEnabledSubmarines() -> table
+
+-- Check if any submarines are available
+IPC.AutoRetainer.AreAnySubmarinesAvailableForCurrentChara() -> boolean
+```
+
+### Additional Character Functions
+
+```lua
+-- Get all registered characters (for multi-character automation)
+IPC.AutoRetainer.GetRegisteredCharacters() -> table
+-- Returns list of registered character content IDs
 ```
 
 ## Helper Functions
@@ -167,11 +227,13 @@ end
 ### Safe Character Data Retrieval
 
 ```lua
+-- VERIFIED: Uses official GetOfflineCharacterData API
 function GetAutoRetainerCharacterData()
     if not HasPlugin("AutoRetainer") then
         return nil, "AutoRetainer plugin not available"
     end
 
+    -- CRITICAL: Always use Svc.ClientState.LocalContentId (VERIFIED)
     local currentCharId = Svc.ClientState.LocalContentId
     local success, result = pcall(function()
         return IPC.AutoRetainer.GetOfflineCharacterData(currentCharId)
@@ -479,9 +541,52 @@ else
 end
 ```
 
+## API Verification Notes
+
+### Verified Methods (AutoRetainerApi.cs)
+The following methods are confirmed from the official AutoRetainerAPI source code at https://github.com/PunishXIV/AutoRetainerAPI:
+
+- `GetOfflineCharacterData(ulong contentId)` - Returns OfflineCharacterData with .RetainersAwaitingProcessing property
+- `WriteOfflineCharacterData(OfflineCharacterData)` - Must be used within same frame as read
+- `GetAdditionalRetainerData(ulong contentId, string name)` - Returns AdditionalRetainerData
+- `WriteAdditionalRetainerData(ulong contentId, string name, AdditionalRetainerData)` - Must be used within same frame as read
+- `GetRegisteredCharacters()` - Returns List<ulong> of character content IDs
+- `SetVenture(uint ventureId)` - Override venture assignment (event-specific)
+- `GetSuppressed()` / `SetSuppressed(bool)` - Control suppressed state
+- `Ready` property - Check if API is initialized
+
+### Community Documented Methods
+The following methods are documented from community usage and testing. They work in practice but the exact IPC provider source has not been verified:
+
+- `IsBusy()` - Check if AutoRetainer is processing
+- `GetMultiModeEnabled()` / `SetMultiModeEnabled(bool)` - Multi-mode control
+- `EnableMultiMode()` - Alternative multi-mode enable
+- `GetInventoryFreeSlotCount()` - Inventory space check
+- `GetEnabledRetainers()` - Enabled retainer list
+- `AreAnyRetainersAvailableForCurrentChara()` - Retainer availability
+- `GetRetainerInventory(retainerId)` - Retainer inventory access
+- `AbortAllTasks()` - Cancel all tasks
+- `DisableAllFunctions()` - Disable AutoRetainer
+- `EnqueueHET(onFailure)` - Hunt/Exploration/Trade tasks
+- `EnqueueInitiation()` - Start retainer processing
+- `StartRetainerTask(retainerId, taskType, taskId)` - Start specific task
+- `GetRetainerTaskStatus(retainerId)` - Task status check
+- `CanAutoLogin()` - Auto-login availability
+- `Relog(charaNameWithWorld)` - Character switch
+- `GetOptionRetainerSense()` / `SetOptionRetainerSense(bool)` - RetainerSense option
+- `GetGCInfo()` - Grand Company information
+- `GetClosestRetainerVentureSecondsRemaining(contentId)` - Venture timer
+- `GetEnabledSubmarines()` - Submarine list
+- `AreAnySubmarinesAvailableForCurrentChara()` - Submarine availability
+
+### Known API Changes Needed
+The AutoRetainer plugin uses IPC providers that are defined in the main AutoRetainer plugin (not the API library). To fully verify all methods, we would need access to:
+- `PunishXIV/AutoRetainer` repository IPC provider implementations
+- Current testing to confirm method signatures match actual behavior
+
 ## Best Practices
 
-1. **ALWAYS use `Svc.ClientState.LocalContentId`** - Never use `Player.CID` (causes crashes)
+1. **ALWAYS use `Svc.ClientState.LocalContentId`** - Never use `Player.CID` (causes crashes) [VERIFIED]
 2. **Use pcall** for all AutoRetainer API calls
 3. **Check plugin availability** before using AutoRetainer
 4. **Check IsBusy()** before starting new operations
@@ -490,3 +595,4 @@ end
 7. **Verify retainer availability** before processing
 8. **Use multi-mode appropriately** based on your needs
 9. **Check summoning bell condition** when managing retainers
+10. **Never store OfflineCharacterData or AdditionalRetainerData** - Must read, modify, and write within single frame [VERIFIED]

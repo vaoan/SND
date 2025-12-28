@@ -18,33 +18,66 @@ if not HasPlugin("Artisan") then
 end
 ```
 
-## Complete API Reference
+## Official IPC API Reference
 
-### List Control Functions
+> **Source:** https://github.com/PunishXIV/Artisan/blob/main/Artisan/IPC/IPC.cs
+
+All APIs below are verified against the official Artisan IPC source code.
+
+**Note:** In the C# source, `CraftItem` uses `ushort` for recipeId and `int` for amount. In Lua, both are treated as `number` types.
+
+### Endurance Mode
 ```lua
--- Check if crafting list is running
-IPC.Artisan.IsListRunning() -> boolean
+-- Get endurance status (is endurance mode enabled)
+IPC.Artisan.GetEnduranceStatus() → boolean
 
--- Check if crafting list is paused
-IPC.Artisan.IsListPaused() -> boolean
-
--- Start crafting an item
-IPC.Artisan.CraftItem(number recipeId, number quantity) -> nil
-
--- Pause the crafting list
-IPC.Artisan.PauseList() -> nil
-
--- Resume the crafting list
-IPC.Artisan.ResumeList() -> nil
-
--- Stop the crafting list
-IPC.Artisan.StopList() -> nil
+-- Set endurance status (enable/disable endurance mode)
+IPC.Artisan.SetEnduranceStatus(boolean enabled) → nil
 ```
 
-### Endurance Functions
+### Crafting List Control
 ```lua
--- Get endurance status
-IPC.Artisan.GetEnduranceStatus() -> boolean
+-- Check if a crafting list is currently processing
+IPC.Artisan.IsListRunning() → boolean
+
+-- Check if the crafting list is paused
+IPC.Artisan.IsListPaused() → boolean
+
+-- Set list pause state (only works if list is already paused)
+IPC.Artisan.SetListPause(boolean paused) → nil
+```
+
+### Stop/Resume Requests
+```lua
+-- Get the stop request status
+IPC.Artisan.GetStopRequest() → boolean
+
+-- Set stop request (true = stop crafting, false = resume)
+-- When true: stops crafting
+-- When false: resumes crafting (unless in duty finder/bound by duty)
+IPC.Artisan.SetStopRequest(boolean stop) → nil
+```
+
+### Craft Specific Item
+```lua
+-- Craft a specific item by recipe ID
+-- Throws exception if recipe ID not found
+IPC.Artisan.CraftItem(number recipeId, number amount) → nil
+```
+
+### Busy Check
+```lua
+-- Check if Artisan is busy (endurance running, list processing, or tasks queued)
+IPC.Artisan.IsBusy() → boolean
+```
+
+### ArtisanMode Enum
+```lua
+local ArtisanMode = {
+    None = 0,
+    Endurance = 1,
+    Lists = 2,
+}
 ```
 
 ## Helper Functions
@@ -88,7 +121,7 @@ function WaitForArtisanComplete(timeout)
 
     if IsArtisanRunning() then
         yield("/echo [Script] Artisan timeout, stopping")
-        IPC.Artisan.StopList()
+        IPC.Artisan.SetStopRequest(true)
         return false
     end
 
@@ -181,13 +214,10 @@ function PauseArtisan()
         return false
     end
 
-    if IPC.Artisan.IsListRunning() and not IPC.Artisan.IsListPaused() then
-        IPC.Artisan.PauseList()
-        yield("/echo [Script] Artisan paused")
-        return true
-    end
-
-    return false
+    -- Use SetStopRequest(true) to stop crafting
+    IPC.Artisan.SetStopRequest(true)
+    yield("/echo [Script] Artisan stop requested")
+    return true
 end
 
 function ResumeArtisan()
@@ -195,13 +225,11 @@ function ResumeArtisan()
         return false
     end
 
-    if IPC.Artisan.IsListRunning() and IPC.Artisan.IsListPaused() then
-        IPC.Artisan.ResumeList()
-        yield("/echo [Script] Artisan resumed")
-        return true
-    end
-
-    return false
+    -- Use SetStopRequest(false) to resume crafting
+    -- Note: Won't resume if in duty finder or bound by duty
+    IPC.Artisan.SetStopRequest(false)
+    yield("/echo [Script] Artisan resume requested")
+    return true
 end
 
 function StopArtisan()
@@ -209,13 +237,17 @@ function StopArtisan()
         return false
     end
 
-    if IPC.Artisan.IsListRunning() then
-        IPC.Artisan.StopList()
-        yield("/echo [Script] Artisan stopped")
-        return true
-    end
+    IPC.Artisan.SetStopRequest(true)
+    yield("/echo [Script] Artisan stopped")
+    return true
+end
 
-    return false
+-- Check if Artisan is busy with anything
+function IsArtisanBusy()
+    if not HasPlugin("Artisan") then
+        return false
+    end
+    return IPC.Artisan.IsBusy()
 end
 ```
 
@@ -271,7 +303,7 @@ end
 
 if IsArtisanRunning() then
     yield("/echo [Script] WARNING: Crafting taking too long, stopping...")
-    IPC.Artisan.StopList()
+    IPC.Artisan.SetStopRequest(true)
 end
 ```
 
