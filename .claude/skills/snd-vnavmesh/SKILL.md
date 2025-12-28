@@ -7,6 +7,8 @@ description: Use this skill when implementing navigation or movement in SND macr
 
 This skill covers integration with the vnavmesh plugin for navigation and movement in SND macros.
 
+> **Source:** Verified from https://github.com/awgil/ffxiv_navmesh/blob/master/vnavmesh/IPCProvider.cs (Last verified: 2025-12-11)
+
 ## Prerequisites
 
 ```lua
@@ -18,61 +20,140 @@ if not HasPlugin("vnavmesh") then
 end
 
 -- Check if vnavmesh is ready
-if not IPC.vnavmesh.IsReady() then
+if not IPC.vnavmesh.Nav.IsReady() then
     yield("/echo [Script] vnavmesh is not ready")
     StopFlag = true
     return
 end
 ```
 
-## Complete API Reference
+## Complete API Reference (Official)
 
-### Status and Management Functions
+All IPC calls use the prefix `vnavmesh.` internally. In SND Lua, access via `IPC.vnavmesh.*`.
+
+### Nav Functions (Navmesh Management)
 ```lua
--- Check if vnavmesh is ready
-IPC.vnavmesh.IsReady()
+-- Check if navmesh is loaded and ready
+IPC.vnavmesh.Nav.IsReady() → boolean
 
--- Get build progress (0.0 to 1.0)
-IPC.vnavmesh.BuildProgress()
+-- Get navmesh build progress (0.0 to 1.0)
+IPC.vnavmesh.Nav.BuildProgress() → number
 
--- Reload vnavmesh
-IPC.vnavmesh.Reload()
+-- Reload navmesh (uses cached data if available)
+IPC.vnavmesh.Nav.Reload() → nil
 
--- Rebuild vnavmesh
-IPC.vnavmesh.Rebuild()
+-- Rebuild navmesh (forces full rebuild, ignores cache)
+IPC.vnavmesh.Nav.Rebuild() → nil
+
+-- Pathfind from one point to another (returns path waypoints)
+IPC.vnavmesh.Nav.Pathfind(Vector3 from, Vector3 to, boolean fly) → List<Vector3>
+
+-- Pathfind with tolerance/range
+IPC.vnavmesh.Nav.PathfindWithTolerance(Vector3 from, Vector3 to, boolean fly, number range) → List<Vector3>
+
+-- Pathfind with cancellation token (advanced)
+IPC.vnavmesh.Nav.PathfindCancelable(Vector3 from, Vector3 to, boolean fly, CancellationToken cancel) → List<Vector3>
+
+-- Cancel all pathfinding operations (calls Reload internally)
+IPC.vnavmesh.Nav.PathfindCancelAll() → nil
+
+-- Check if any pathfinding is in progress
+IPC.vnavmesh.Nav.PathfindInProgress() → boolean
+
+-- Get number of queued pathfind requests
+IPC.vnavmesh.Nav.PathfindNumQueued() → number
+
+-- Get/Set auto-load navmesh setting
+IPC.vnavmesh.Nav.IsAutoLoad() → boolean
+IPC.vnavmesh.Nav.SetAutoLoad(boolean enabled) → nil
+
+-- Build bitmap of navmesh (for debugging/visualization)
+IPC.vnavmesh.Nav.BuildBitmap(Vector3 startingPos, string filename, number pixelSize) → boolean
+IPC.vnavmesh.Nav.BuildBitmapBounded(Vector3 startingPos, string filename, number pixelSize, Vector3 minBounds, Vector3 maxBounds) → boolean
 ```
 
-### Pathfinding Functions
-```lua
--- Pathfind from one point to another
-IPC.vnavmesh.Pathfind(from, to, fly)
-
--- Pathfind and move to destination
-IPC.vnavmesh.PathfindAndMoveTo(dest, fly)
-
--- Check if pathfinding is in progress
-IPC.vnavmesh.PathfindInProgress()
-```
-
-### Movement Functions
-```lua
--- Move to position with waypoints
-IPC.vnavmesh.MoveTo(waypoints, fly)
-
--- Stop current movement
-IPC.vnavmesh.Stop()
-
--- Check if movement is running
-IPC.vnavmesh.IsRunning()
-```
-
-### Utility Functions
+### Query Functions (Mesh Queries)
 ```lua
 -- Get nearest point on navmesh
-IPC.vnavmesh.NearestPoint(p, halfExtentXZ, halfExtentY)
+IPC.vnavmesh.Query.Mesh.NearestPoint(Vector3 p, number halfExtentXZ, number halfExtentY) → Vector3?
 
 -- Get point on floor
-IPC.vnavmesh.PointOnFloor(p, allowUnlandable, halfExtentXZ)
+-- NOTE: allowUnlandable parameter is present but currently unused in the implementation
+IPC.vnavmesh.Query.Mesh.PointOnFloor(Vector3 p, boolean allowUnlandable, number halfExtentXZ) → Vector3?
+```
+
+### Path Functions (Movement Control)
+```lua
+-- Move along waypoints
+-- IMPORTANT: The 'fly' parameter is INVERTED internally (!fly)
+-- Pass true to walk/run, false to fly
+IPC.vnavmesh.Path.MoveTo(List<Vector3> waypoints, boolean fly) → nil
+
+-- Stop current movement
+IPC.vnavmesh.Path.Stop() → nil
+
+-- Check if path following is active
+IPC.vnavmesh.Path.IsRunning() → boolean
+
+-- Get number of remaining waypoints
+IPC.vnavmesh.Path.NumWaypoints() → number
+
+-- Get list of remaining waypoints
+IPC.vnavmesh.Path.ListWaypoints() → List<Vector3>
+
+-- Get/Set whether movement is allowed
+IPC.vnavmesh.Path.GetMovementAllowed() → boolean
+IPC.vnavmesh.Path.SetMovementAllowed(boolean allowed) → nil
+
+-- Get/Set camera alignment to movement
+IPC.vnavmesh.Path.GetAlignCamera() → boolean
+IPC.vnavmesh.Path.SetAlignCamera(boolean align) → nil
+
+-- Get/Set tolerance for reaching waypoints
+IPC.vnavmesh.Path.GetTolerance() → number
+IPC.vnavmesh.Path.SetTolerance(number tolerance) → nil
+```
+
+### SimpleMove Functions (High-Level Movement)
+```lua
+-- Pathfind and move to destination (most commonly used)
+IPC.vnavmesh.SimpleMove.PathfindAndMoveTo(Vector3 dest, boolean fly) → boolean
+
+-- Pathfind and move close to destination (within range)
+IPC.vnavmesh.SimpleMove.PathfindAndMoveCloseTo(Vector3 dest, boolean fly, number range) → boolean
+
+-- Check if SimpleMove pathfinding is in progress
+IPC.vnavmesh.SimpleMove.PathfindInProgress() → boolean
+```
+
+### Window Functions
+```lua
+-- Get/Set vnavmesh window visibility
+IPC.vnavmesh.Window.IsOpen() → boolean
+IPC.vnavmesh.Window.SetOpen(boolean open) → nil
+```
+
+### DTR Functions (Server Info Bar)
+```lua
+-- Get/Set DTR entry visibility
+IPC.vnavmesh.DTR.IsShown() → boolean
+IPC.vnavmesh.DTR.SetShown(boolean shown) → nil
+```
+
+## Legacy API Mapping
+
+Some older scripts may use simplified function names. Here's the mapping:
+
+```lua
+-- Legacy                           → Official
+IPC.vnavmesh.IsReady()             → IPC.vnavmesh.Nav.IsReady()
+IPC.vnavmesh.BuildProgress()       → IPC.vnavmesh.Nav.BuildProgress()
+IPC.vnavmesh.Reload()              → IPC.vnavmesh.Nav.Reload()
+IPC.vnavmesh.Rebuild()             → IPC.vnavmesh.Nav.Rebuild()
+IPC.vnavmesh.PathfindAndMoveTo()   → IPC.vnavmesh.SimpleMove.PathfindAndMoveTo()
+IPC.vnavmesh.PathfindInProgress()  → IPC.vnavmesh.SimpleMove.PathfindInProgress()
+IPC.vnavmesh.Stop()                → IPC.vnavmesh.Path.Stop()
+IPC.vnavmesh.IsRunning()           → IPC.vnavmesh.Path.IsRunning()
 ```
 
 ## Helper Functions
@@ -80,18 +161,18 @@ IPC.vnavmesh.PointOnFloor(p, allowUnlandable, halfExtentXZ)
 ### vnavmesh Status Checking
 ```lua
 function IsVnavmeshReady()
-    return HasPlugin("vnavmesh") and IPC.vnavmesh.IsReady()
+    return HasPlugin("vnavmesh") and IPC.vnavmesh.Nav.IsReady()
 end
 
 function IsVnavmeshRunning()
-    return IPC.vnavmesh.IsRunning() or IPC.vnavmesh.PathfindInProgress()
+    return IPC.vnavmesh.Path.IsRunning() or IPC.vnavmesh.SimpleMove.PathfindInProgress()
 end
 
 function GetVnavmeshBuildProgress()
     if not IsVnavmeshReady() then
         return 0.0
     end
-    return IPC.vnavmesh.BuildProgress()
+    return IPC.vnavmesh.Nav.BuildProgress()
 end
 ```
 
@@ -103,7 +184,7 @@ function ReloadVnavmesh()
         return false
     end
 
-    IPC.vnavmesh.Reload()
+    IPC.vnavmesh.Nav.Reload()
     yield("/echo [Script] vnavmesh reloaded")
     return true
 end
@@ -114,7 +195,7 @@ function RebuildVnavmesh()
         return false
     end
 
-    IPC.vnavmesh.Rebuild()
+    IPC.vnavmesh.Nav.Rebuild()
     yield("/echo [Script] vnavmesh rebuild started")
     return true
 end
@@ -141,7 +222,7 @@ end
 -- @return boolean - True if ready
 function WaitVnavReady(timeout)
     return WaitUntil(function()
-        local ok, res = _safe_vnav(IPC.vnavmesh.IsReady)
+        local ok, res = _safe_vnav(IPC.vnavmesh.Nav.IsReady)
         return ok and res
     end, timeout or TIME.TIMEOUT, TIME.POLL, 0.0)
 end
@@ -158,7 +239,7 @@ function PathandMoveVnav(dest, fly)
         return false
     end
 
-    local okMove, moveRes = _safe_vnav(IPC.vnavmesh.PathfindAndMoveTo, dest, fly)
+    local okMove, moveRes = _safe_vnav(IPC.vnavmesh.SimpleMove.PathfindAndMoveTo, dest, fly)
     if not okMove or not moveRes then
         Log("VNAV pathfind failed")
         return false
@@ -179,7 +260,7 @@ function StopCloseVnav(dest, stopDistance)
 
     -- Wait for movement to start
     local okRun = WaitUntil(function()
-        local ok, res = _safe_vnav(IPC.vnavmesh.IsRunning)
+        local ok, res = _safe_vnav(IPC.vnavmesh.Path.IsRunning)
         return ok and res
     end, TIME.TIMEOUT, TIME.POLL, 0.0)
 
@@ -190,13 +271,13 @@ function StopCloseVnav(dest, stopDistance)
 
     -- Monitor until close enough or stopped
     while true do
-        local okRunLoop, running = _safe_vnav(IPC.vnavmesh.IsRunning)
+        local okRunLoop, running = _safe_vnav(IPC.vnavmesh.Path.IsRunning)
         if not okRunLoop then return false end
         if not running then return true end
 
         local pos = Entity and Entity.Player and Entity.Player.Position
         if pos and IsWithinDistance(pos, dest, stopDistance) then
-            _safe_vnav(IPC.vnavmesh.Stop)
+            _safe_vnav(IPC.vnavmesh.Path.Stop)
             return true
         end
         Sleep(TIME.POLL)
@@ -220,17 +301,17 @@ end
 ### Basic Movement
 ```lua
 -- Move to position
-if not IPC.vnavmesh.PathfindInProgress() and not IPC.vnavmesh.IsRunning() then
-    IPC.vnavmesh.PathfindAndMoveTo(Vector3(x, y, z), false)
+if not IPC.vnavmesh.SimpleMove.PathfindInProgress() and not IPC.vnavmesh.Path.IsRunning() then
+    IPC.vnavmesh.SimpleMove.PathfindAndMoveTo(Vector3(x, y, z), false)
 end
 
 -- Wait for movement completion
-while IPC.vnavmesh.IsRunning() or IPC.vnavmesh.PathfindInProgress() do
+while IPC.vnavmesh.Path.IsRunning() or IPC.vnavmesh.SimpleMove.PathfindInProgress() do
     yield("/wait 1")
 end
 
 -- Stop movement if needed
-IPC.vnavmesh.Stop()
+IPC.vnavmesh.Path.Stop()
 ```
 
 ### Movement with Timeout
@@ -243,19 +324,19 @@ function MoveToPositionWithTimeout(x, y, z, timeout)
         return false
     end
 
-    if not IPC.vnavmesh.PathfindInProgress() and not IPC.vnavmesh.IsRunning() then
-        IPC.vnavmesh.PathfindAndMoveTo(Vector3(x, y, z), false)
+    if not IPC.vnavmesh.SimpleMove.PathfindInProgress() and not IPC.vnavmesh.Path.IsRunning() then
+        IPC.vnavmesh.SimpleMove.PathfindAndMoveTo(Vector3(x, y, z), false)
     end
 
     local startTime = os.clock()
-    while (IPC.vnavmesh.IsRunning() or IPC.vnavmesh.PathfindInProgress()) and
+    while (IPC.vnavmesh.Path.IsRunning() or IPC.vnavmesh.SimpleMove.PathfindInProgress()) and
           (os.clock() - startTime) < timeout do
         yield("/wait 1")
     end
 
-    if IPC.vnavmesh.IsRunning() then
+    if IPC.vnavmesh.Path.IsRunning() then
         yield("/echo [Script] Movement timeout, stopping")
-        IPC.vnavmesh.Stop()
+        IPC.vnavmesh.Path.Stop()
         return false
     end
 
@@ -353,21 +434,21 @@ function SafeMoveToPosition(x, y, z, timeout)
     end
 
     -- Start movement
-    if not IPC.vnavmesh.PathfindInProgress() and not IPC.vnavmesh.IsRunning() then
-        IPC.vnavmesh.PathfindAndMoveTo(Vector3(x, y, z), false)
+    if not IPC.vnavmesh.SimpleMove.PathfindInProgress() and not IPC.vnavmesh.Path.IsRunning() then
+        IPC.vnavmesh.SimpleMove.PathfindAndMoveTo(Vector3(x, y, z), false)
     end
 
     -- Wait for completion with timeout
     local startTime = os.clock()
-    while (IPC.vnavmesh.IsRunning() or IPC.vnavmesh.PathfindInProgress()) and
+    while (IPC.vnavmesh.Path.IsRunning() or IPC.vnavmesh.SimpleMove.PathfindInProgress()) and
           (os.clock() - startTime) < timeout do
         yield("/wait 1")
     end
 
     -- Handle timeout
-    if IPC.vnavmesh.IsRunning() then
+    if IPC.vnavmesh.Path.IsRunning() then
         yield("/echo [Script] WARNING: Movement timeout, stopping")
-        IPC.vnavmesh.Stop()
+        IPC.vnavmesh.Path.Stop()
         return false
     end
 
@@ -393,13 +474,13 @@ function SmartMoveToPosition(x, y, z, fly)
     end
 
     -- Get nearest point on navmesh
-    local nearestPoint = IPC.vnavmesh.NearestPoint(Vector3(x, y, z), 2.0, 2.0)
+    local nearestPoint = IPC.vnavmesh.Query.Mesh.NearestPoint(Vector3(x, y, z), 2.0, 2.0)
     if nearestPoint then
         yield("/echo [Script] Moving to nearest navmesh point")
-        IPC.vnavmesh.PathfindAndMoveTo(nearestPoint, fly)
+        IPC.vnavmesh.SimpleMove.PathfindAndMoveTo(nearestPoint, fly)
     else
         yield("/echo [Script] No navmesh point found, trying direct movement")
-        IPC.vnavmesh.PathfindAndMoveTo(Vector3(x, y, z), fly)
+        IPC.vnavmesh.SimpleMove.PathfindAndMoveTo(Vector3(x, y, z), fly)
     end
 
     return true
@@ -416,10 +497,10 @@ function MoveToFloorPosition(x, y, z, fly)
         return false
     end
 
-    local floorPoint = IPC.vnavmesh.PointOnFloor(Vector3(x, y, z), false, 1.0)
+    local floorPoint = IPC.vnavmesh.Query.Mesh.PointOnFloor(Vector3(x, y, z), false, 1.0)
     if floorPoint then
         yield("/echo [Script] Moving to floor position")
-        IPC.vnavmesh.PathfindAndMoveTo(floorPoint, fly)
+        IPC.vnavmesh.SimpleMove.PathfindAndMoveTo(floorPoint, fly)
         return true
     else
         yield("/echo [Script] No floor point found")
@@ -436,11 +517,11 @@ function MonitorVnavmeshBuild()
         return false
     end
 
-    if not IPC.vnavmesh.IsReady() then
+    if not IPC.vnavmesh.Nav.IsReady() then
         local progress = GetVnavmeshBuildProgress()
         yield("/echo [Script] vnavmesh building... " .. math.floor(progress * 100) .. "%")
 
-        while not IPC.vnavmesh.IsReady() do
+        while not IPC.vnavmesh.Nav.IsReady() do
             progress = GetVnavmeshBuildProgress()
             yield("/echo [Script] Build progress: " .. math.floor(progress * 100) .. "%")
             yield("/wait 2")
@@ -481,7 +562,7 @@ function IsCharacterBusy()
     return Svc.Condition[CharacterCondition.casting] or
            Svc.Condition[CharacterCondition.betweenAreas] or
            Svc.Condition[CharacterCondition.beingMoved] or
-           IPC.vnavmesh.IsRunning() or
+           IPC.vnavmesh.Path.IsRunning() or
            Player.IsBusy
 end
 ```

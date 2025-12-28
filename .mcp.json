@@ -11,6 +11,13 @@
         "mcp-server-sqlite-npx",
         "Z:\\Users\\Heiner\\Documents\\Juegos\\FFXIV\\Profiles\\Me\\XIVLauncher\\pluginConfigs\\ChatTwo\\chat-sqlite.db"
       ]
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "env": {
+        "MEMORY_FILE_PATH": ".claude/memory.jsonl"
+      }
     }
   }
 }

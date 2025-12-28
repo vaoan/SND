@@ -338,6 +338,27 @@ end
 - `Player.GetLevel(x)` → nil (method doesn't exist)
 - `Player.ClassJob` → nil
 
+### Combat and Casting State
+```lua
+-- Check if player is in combat
+Player.InCombat → boolean
+
+-- Check if player is casting
+Player.IsCasting → boolean
+
+-- Get current cast info (when casting)
+Player.CastInfo → table  -- Contains spell info when casting
+
+-- Check if player is alive
+Player.IsAlive → boolean
+
+-- Get current HP/MP
+Player.CurrentHp → number
+Player.MaxHp → number
+Player.CurrentMp → number
+Player.MaxMp → number
+```
+
 ### Player Status Effects
 ```lua
 -- Get player status list
@@ -392,6 +413,27 @@ local npc = Entity.GetEntityByName("NPC Name")
 
 -- Get entity by ID
 local entity = Entity.GetEntityById(entityId)
+
+-- Get entity by DataId (for NPCs with specific DataIds)
+local entity = Entity.GetEntityByDataId(dataId)
+
+-- Get nearest entity by name
+local nearest = Entity.GetNearestEntityByName("NPC Name")
+
+-- Get all entities matching criteria
+local entities = Entity.GetEntitiesByName("NPC Name")  -- Returns table
+```
+
+### Entity Filtering
+```lua
+-- Get entities within range
+local nearbyEntities = Entity.GetEntitiesInRange(maxDistance)
+
+-- Get targetable entities
+local targetable = Entity.GetTargetableEntities()
+
+-- Get enemy entities in combat
+local enemies = Entity.GetEnemiesInCombat()
 ```
 
 ### Svc.Targets System
@@ -1880,6 +1922,197 @@ end
 -- DumpInstance("Player.Entity", Player.Entity)
 -- DumpPropertyTypes("Svc.Targets", Svc.Targets)
 -- DumpPropertyType("Player.Entity.Target", Player.Entity, "Target")
+```
+
+## SND Built-in Global Functions
+
+These are global functions available in SND Lua macros without needing any plugin.
+
+### Action Execution
+```lua
+-- Execute a game action safely by ID
+ExecuteActionSafeNumber(number actionId, number actionType) → nil
+
+-- Execute action by name
+ExecuteAction(string actionName) → nil
+
+-- Execute action on target
+ExecuteActionOnTarget(string actionName, number targetId) → nil
+```
+
+### String/Variable Storage
+```lua
+-- Get stored string value
+GetString(string key) → string
+
+-- Set string value
+SetString(string key, string value) → nil
+
+-- Get stored number value
+GetNumber(string key) → number
+
+-- Set number value
+SetNumber(string key, number value) → nil
+```
+
+### Casting Information
+```lua
+-- Get casting-related number value
+GetCastingNumber(string key) → number
+
+-- Set casting number value
+SetCastingNumber(string key, number value) → nil
+
+-- Check if player is casting
+IsCasting() → boolean
+
+-- Get current cast time remaining
+GetCastTimeRemaining() → number
+```
+
+### Targeting Functions
+```lua
+-- Get focus target
+FocusTarget() → Entity
+
+-- Set target by entity
+SetTarget(Entity entity) → nil
+
+-- Get target info
+GetTargetInfo() → table
+```
+
+### Movement Checks
+```lua
+-- Check if something is nearing (distance check)
+GetNearing(number x, number y, number z, number distance) → boolean
+
+-- Check if player is moving
+IsMoving() → boolean
+
+-- Get distance to coordinates
+GetDistanceTo(number x, number y, number z) → number
+```
+
+### Addon/UI Access
+```lua
+-- Get addon by name (returns addon wrapper)
+GetAddon(string addonName) → Addon
+
+-- Check if addon is visible
+IsAddonVisible(string addonName) → boolean
+
+-- Check if addon is ready
+IsAddonReady(string addonName) → boolean
+```
+
+## SND Commands Reference
+
+### Macro Control Commands
+```lua
+-- Run a specific macro by name
+yield("/pcraft run MacroName")
+
+-- Run all macros marked as loop
+yield("/pcraft runall")
+
+-- Run a macro in step mode (pause between steps)
+yield("/pcraft step MacroName")
+
+-- Pause all running macros
+yield("/pcraft pause")
+
+-- Resume paused macros
+yield("/pcraft resume")
+yield("/pcraft resume all")
+
+-- Stop current macro
+yield("/pcraft stop")
+
+-- Stop all running macros
+yield("/pcraft stopall")
+
+-- Stop loop macros only
+yield("/pcraft stoploop")
+
+-- Toggle macro execution
+yield("/pcraft toggle")
+
+-- Show help
+yield("/pcraft help")
+```
+
+### Yield Commands (In-Macro Commands)
+```lua
+-- Execute a game action
+yield("/action ActionName")
+yield("/ac ActionName")        -- Short form
+
+-- Click a pre-defined UI button
+yield("/click ButtonName")
+
+-- Hold a key with auto-effects (stops at end of macro)
+yield("/hold KeyName")
+
+-- Use an item from inventory
+yield("/item ItemName")
+
+-- Loop - copy current macro pattern
+yield("/loop")
+yield("/loop 5")               -- Loop 5 times
+
+-- Remove held keyboard keys
+yield("/notify")
+
+-- Require specific stats/items before continuing
+yield("/requirestats")
+yield("/require ItemName")
+
+-- Send key to game
+yield("/send KeyName")
+yield("/sendkey KeyName")
+
+-- Target commands
+yield("/target TargetName")
+yield("/targetenemy")
+
+-- Wait commands
+yield("/wait 1.5")             -- Wait 1.5 seconds
+yield("/waitaddon AddonName")  -- Wait for addon to be ready
+```
+
+### Available Click Targets
+Common `/click` targets for UI automation:
+```lua
+-- Selection dialogs
+yield("/click AddonReaderSelect")
+yield("/click BannerSelect")
+yield("/click SelectString")
+yield("/click SelectYesno")
+
+-- Banking/Trading
+yield("/click Bank")
+yield("/click Bankroll")
+
+-- Duty Finder
+yield("/click DutyFinder")
+yield("/click ContentsFinderConfirm")
+
+-- Grand Company
+yield("/click GrandCompanySupplyList")
+
+-- Housing
+yield("/click HousingAethernet")
+
+-- Shops
+yield("/click InclusionShop")
+yield("/click Shop")
+
+-- Talk/Dialog
+yield("/click Talk Click")
+
+-- Cancel/Close
+yield("/click Cancel")
 ```
 
 ## Best Practices

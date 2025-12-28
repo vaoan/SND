@@ -7,6 +7,8 @@ description: Use this skill when implementing automatic dialog/cutscene advancem
 
 This skill covers integration with the TextAdvance plugin for automatic dialog and cutscene advancement in SND macros.
 
+> **Source:** https://github.com/NightmareXIV/TextAdvance/blob/master/TextAdvance/Services/IPCProvider.cs
+
 ## Prerequisites
 
 ```lua
@@ -39,7 +41,184 @@ function IsTextAdvanceIPCAvailable()
 end
 ```
 
+## Official IPC API Reference
+
+### State Query Methods
+
+```lua
+--- Check if TextAdvance is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.IsEnabled()
+
+--- Check if TextAdvance is paused (blocklisted)
+-- @return boolean - True if paused
+IPC.TextAdvance.IsPaused()
+
+--- Check if in external control mode
+-- @return boolean - True if under external control
+IPC.TextAdvance.IsInExternalControl()
+
+--- Check if TextAdvance task manager is busy
+-- @return boolean - True if busy with movement/interaction
+IPC.TextAdvance.IsBusy()
+```
+
+### Configuration Query Methods
+
+```lua
+--- Check if quest accept is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.GetEnableQuestAccept()
+
+--- Check if quest complete is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.GetEnableQuestComplete()
+
+--- Check if reward pick is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.GetEnableRewardPick()
+
+--- Check if cutscene ESC is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.GetEnableCutsceneEsc()
+
+--- Check if cutscene skip confirm is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.GetEnableCutsceneSkipConfirm()
+
+--- Check if request hand-in is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.GetEnableRequestHandin()
+
+--- Check if request fill is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.GetEnableRequestFill()
+
+--- Check if talk skip is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.GetEnableTalkSkip()
+
+--- Check if auto-interact is enabled
+-- @return boolean - True if enabled
+IPC.TextAdvance.GetEnableAutoInteract()
+```
+
+### External Control Methods
+
+```lua
+--- Enable external control of TextAdvance
+-- @param requester string - Unique identifier for the requester
+-- @param config table - ExternalTerritoryConfig object
+-- @return boolean - True if control was acquired
+IPC.TextAdvance.EnableExternalControl(requester, config)
+
+--- Disable external control of TextAdvance
+-- @param requester string - Unique identifier (must match EnableExternalControl)
+-- @return boolean - True if control was released
+IPC.TextAdvance.DisableExternalControl(requester)
+```
+
+### Movement and Interaction Methods
+
+```lua
+--- Enqueue move and interact with target
+-- @param moveData table - MoveData object with position, dataID, noInteract
+-- MoveData structure:
+--   {
+--     Position = Vector3(x, y, z),  -- Destination position
+--     DataID = uint,                 -- Object DataID (0 for any targetable)
+--     NoInteract = boolean,          -- If true, don't interact after moving
+--     Mount = boolean or nil,        -- Force mount state (nil = auto)
+--     Fly = boolean or nil           -- Force fly state (nil = auto)
+--   }
+IPC.TextAdvance.EnqueueMoveAndInteract(moveData)
+
+--- Enqueue move to 2D point (ignores Y coordinate)
+-- @param moveData table - MoveData object
+-- @param distance number - Distance threshold to consider "arrived"
+IPC.TextAdvance.EnqueueMoveTo2DPoint(moveData, distance)
+
+--- Enqueue move to 3D point (includes Y coordinate)
+-- @param moveData table - MoveData object
+-- @param distance number - Distance threshold to consider "arrived"
+IPC.TextAdvance.EnqueueMoveTo3DPoint(moveData, distance)
+
+--- Stop all movement and interaction tasks
+IPC.TextAdvance.Stop()
+```
+
+### Example: Using IPC Methods
+
+```lua
+--- Check if TextAdvance will handle quest dialogs
+function WillAutoAcceptQuest()
+    if not HasPlugin("TextAdvance") then
+        return false
+    end
+
+    return IPC.TextAdvance.IsEnabled() and
+           IPC.TextAdvance.GetEnableQuestAccept() and
+           not IPC.TextAdvance.IsPaused()
+end
+
+--- Move to NPC and interact using TextAdvance IPC
+-- @param x number - X coordinate
+-- @param y number - Y coordinate
+-- @param z number - Z coordinate
+-- @param dataId number - NPC DataID (0 for any targetable at position)
+-- @return boolean - True if task was enqueued
+function MoveAndInteractWithNPC(x, y, z, dataId)
+    if not HasPlugin("TextAdvance") then
+        return false
+    end
+
+    local moveData = {
+        Position = Vector3(x, y, z),
+        DataID = dataId or 0,
+        NoInteract = false,
+        Mount = nil,  -- Let TextAdvance decide
+        Fly = nil     -- Let TextAdvance decide
+    }
+
+    IPC.TextAdvance.EnqueueMoveAndInteract(moveData)
+
+    -- Wait for task to start
+    yield("/wait 0.5")
+
+    -- Wait for completion
+    while IPC.TextAdvance.IsBusy() do
+        yield("/wait 0.5")
+    end
+
+    return true
+end
+
+--- External control example (advanced)
+function TakeControlOfTextAdvance()
+    local requester = "MyScript"
+    local config = {
+        -- ExternalTerritoryConfig structure
+        -- (See TextAdvance source for details)
+    }
+
+    local success = IPC.TextAdvance.EnableExternalControl(requester, config)
+    if success then
+        yield("/echo [Script] TextAdvance external control acquired")
+    end
+
+    return success
+end
+
+function ReleaseControlOfTextAdvance()
+    local requester = "MyScript"
+    IPC.TextAdvance.DisableExternalControl(requester)
+    yield("/echo [Script] TextAdvance external control released")
+end
+```
+
 ## TextAdvance Control Commands
+
+**Note:** Most users should use the command-based control methods below. The IPC methods above are primarily for advanced scenarios like external control, state queries, and integrated movement/interaction systems.
 
 ### Enable/Disable TextAdvance
 

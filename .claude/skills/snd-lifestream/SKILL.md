@@ -7,6 +7,9 @@ description: Use this skill when implementing teleportation, world travel, or in
 
 This skill covers integration with the Lifestream plugin for teleportation and world travel in SND macros.
 
+> **Source Status:** Verified
+> **Source:** https://github.com/NightmareXIV/Lifestream/blob/main/Lifestream/IPC/IPCProvider.cs
+
 ## Prerequisites
 
 ```lua
@@ -22,8 +25,8 @@ end
 
 ### Core Functions
 ```lua
--- Execute a command
-IPC.Lifestream.ExecuteCommand(string command) -> nil
+-- Execute a command (teleport, etc.)
+IPC.Lifestream.ExecuteCommand(string arguments) -> nil
 
 -- Check if Lifestream is busy
 IPC.Lifestream.IsBusy() -> boolean
@@ -40,11 +43,12 @@ IPC.Lifestream.CanVisitSameDC(string world) -> boolean
 -- Check if can visit cross data center world
 IPC.Lifestream.CanVisitCrossDC(string world) -> boolean
 
--- Teleport and change world
-IPC.Lifestream.TPAndChangeWorld() -> nil
+-- Teleport and change world with advanced options
+-- Parameters: world, isDcTransfer, secondaryTeleport, noSecondaryTeleport, gateway, doNotify, returnToGateway
+IPC.Lifestream.TPAndChangeWorld(string w, boolean isDcTransfer, string secondaryTeleport, boolean noSecondaryTeleport, number? gateway, boolean? doNotify, boolean? returnToGateway) -> nil
 
 -- Get world change aetheryte by territory type
-IPC.Lifestream.GetWorldChangeAetheryteByTerritoryType() -> number?
+IPC.Lifestream.GetWorldChangeAetheryteByTerritoryType(number territoryType) -> number?
 
 -- Change world by name
 IPC.Lifestream.ChangeWorld(string world) -> boolean
@@ -55,11 +59,11 @@ IPC.Lifestream.ChangeWorldById(number worldId) -> boolean
 
 ### Aethernet Teleportation Functions
 ```lua
--- Teleport to aethernet destination
+-- Teleport to aethernet destination by name
 IPC.Lifestream.AethernetTeleport(string destination) -> boolean
 
 -- Teleport by place name ID
-IPC.Lifestream.AethernetTeleportByPlaceNameId(number placeNameId) -> boolean
+IPC.Lifestream.AethernetTeleportByPlaceNameId(number placeNameRowId) -> boolean
 
 -- Teleport by aethernet sheet row ID
 IPC.Lifestream.AethernetTeleportById(number aethernetSheetRowId) -> boolean
@@ -86,7 +90,7 @@ IPC.Lifestream.GetActiveResidentialAetheryte() -> number
 ### General Teleportation Functions
 ```lua
 -- Teleport to specific aetheryte with sub-index
-IPC.Lifestream.Teleport(number aetheryteId, number subIndex) -> boolean
+IPC.Lifestream.Teleport(number destination, number subIndex) -> boolean
 
 -- Teleport to Free Company house
 IPC.Lifestream.TeleportToFC() -> boolean
@@ -104,14 +108,35 @@ IPC.Lifestream.GetPlotEntrance(number territory, number plot) -> Vector3?
 IPC.Lifestream.EnterApartment(boolean enter) -> nil
 ```
 
-### Shortcut and Instance Functions
+### Housing Path Data Functions
 ```lua
+-- Get house path data for a character (returns both Private and FC house data)
+IPC.Lifestream.GetHousePathData(number CID) -> (HousePathData Private, HousePathData FC)
+
+-- Get shared house path data
+IPC.Lifestream.GetSharedHousePathData() -> HousePathData
+
+-- Get residential territory by type
+IPC.Lifestream.GetResidentialTerritory(ResidentialAetheryteKind r) -> number
+
+-- Get current plot info (returns Kind, Ward, Plot)
+IPC.Lifestream.GetCurrentPlotInfo() -> (ResidentialAetheryteKind Kind, number Ward, number Plot)?
+```
+
+### Property and Inn Shortcut Functions
+```lua
+-- Enqueue property shortcut (housing access)
+IPC.Lifestream.EnqueuePropertyShortcut(PropertyType type, HouseEnterMode? mode) -> nil
+
 -- Enqueue inn shortcut
 IPC.Lifestream.EnqueueInnShortcut(number? innIndex) -> nil
 
 -- Enqueue local inn shortcut
 IPC.Lifestream.EnqueueLocalInnShortcut(number? innIndex) -> nil
+```
 
+### Instance Management Functions
+```lua
 -- Check if can change instance
 IPC.Lifestream.CanChangeInstance() -> boolean
 
@@ -125,17 +150,23 @@ IPC.Lifestream.ChangeInstance(number number) -> nil
 IPC.Lifestream.GetCurrentInstance() -> number
 ```
 
-### Housing and Workshop Functions
+### Housing Status Functions
 ```lua
 -- Check if player has apartment
 IPC.Lifestream.HasApartment() -> boolean?
 
--- Check if player has private house
-IPC.Lifestream.HasPrivateHouse() -> boolean?
+-- Check if player has shared estate access
+IPC.Lifestream.HasSharedEstate() -> boolean?
 
 -- Check if Free Company has house
 IPC.Lifestream.HasFreeCompanyHouse() -> boolean?
 
+-- Check if player has private house
+IPC.Lifestream.HasPrivateHouse() -> boolean?
+```
+
+### Workshop and Movement Functions
+```lua
 -- Check if can move to workshop
 IPC.Lifestream.CanMoveToWorkshop() -> boolean
 
@@ -144,6 +175,60 @@ IPC.Lifestream.MoveToWorkshop() -> nil
 
 -- Get real territory type ID
 IPC.Lifestream.GetRealTerritoryType() -> number
+
+-- Move along path
+IPC.Lifestream.Move(List<Vector3> path) -> nil
+```
+
+### Address Book Functions
+```lua
+-- Build address book entry for housing
+IPC.Lifestream.BuildAddressBookEntry(string worldStr, string cityStr, string wardNum, string plotApartmentNum, boolean isApartment, boolean isSubdivision) -> AddressBookEntryTuple
+
+-- Check if player is at the address book location
+IPC.Lifestream.IsHere(AddressBookEntryTuple addressBookEntryTuple) -> boolean
+
+-- Check if quick travel is available to the location
+IPC.Lifestream.IsQuickTravelAvailable(AddressBookEntryTuple addressBookEntryTuple) -> boolean
+
+-- Go to housing address
+IPC.Lifestream.GoToHousingAddress(AddressBookEntryTuple addressBookEntryTuple) -> nil
+```
+
+### Auto-Login and Character Functions
+```lua
+-- Check if auto-login is available
+IPC.Lifestream.CanAutoLogin() -> boolean
+
+-- Connect and open character select screen
+IPC.Lifestream.ConnectAndOpenCharaSelect(string charaName, string charaHomeWorld) -> boolean
+
+-- Initiate travel from character select screen
+IPC.Lifestream.InitiateTravelFromCharaSelectScreen(string charaName, string charaHomeWorld, string destination, boolean noLogin) -> boolean
+
+-- Check if can initiate travel from character select list
+IPC.Lifestream.CanInitiateTravelFromCharaSelectList() -> boolean
+
+-- Connect and travel to destination
+IPC.Lifestream.ConnectAndTravel(string charaName, string charaHomeWorld, string destination, boolean noLogin) -> boolean
+
+-- Initiate login from character select screen
+IPC.Lifestream.InitiateLoginFromCharaSelectScreen(string charaName, string charaHomeWorld) -> boolean
+
+-- Connect and login
+IPC.Lifestream.ConnectAndLogin(string charaName, string charaHomeWorld) -> boolean
+
+-- Change character
+IPC.Lifestream.ChangeCharacter(string name, string world) -> ErrorCode
+
+-- Logout current character
+IPC.Lifestream.Logout() -> ErrorCode
+```
+
+### Custom Alias Functions
+```lua
+-- Enqueue custom alias with optional range
+IPC.Lifestream.EnqueueCustomAlias(CustomAlias alias, boolean force, number? inclusiveStart, number? inclusiveEnd) -> nil
 ```
 
 ## Helper Functions
@@ -392,6 +477,7 @@ function GetHousingStatus()
     return {
         hasApartment = IPC.Lifestream.HasApartment(),
         hasPrivateHouse = IPC.Lifestream.HasPrivateHouse(),
+        hasSharedEstate = IPC.Lifestream.HasSharedEstate(),
         hasFreeCompanyHouse = IPC.Lifestream.HasFreeCompanyHouse()
     }
 end

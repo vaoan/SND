@@ -96,6 +96,40 @@ Available MCP tools:
 
 Use these instead of `git add`, `git commit`, `git push`, etc.
 
+### Rule #8: Skills Are Plugin-Centric, Not Macro-Centric
+**Skills should be organized by PLUGIN, not by macro or content type.**
+
+When discovering new APIs:
+- Create/update skills named after the **plugin** (e.g., `snd-autohook`, `snd-visland`, `snd-simpletweaks`)
+- Do NOT create skills for specific macros or content (e.g., ~~`snd-ocean-fishing`~~)
+- This allows skills to be reused across multiple macros that use the same plugin
+
+Example - From FishingRaid.lua we discovered:
+- AutoHook APIs → add to `snd-autohook` skill
+- Visland APIs → add to `snd-visland` skill
+- SimpleTweaks commands → add to `snd-simpletweaks` skill
+- SND built-in ocean fishing functions → add to `snd-core` skill
+
+This modular approach means any future macro can leverage the same plugin documentation.
+
+### Rule #9: Include Source Repository in Skills
+**When creating or updating skills from official plugin repositories, ALWAYS include the source repo URL in the skill documentation.**
+
+Add a "Source Status" note near the top of the skill file:
+```markdown
+> **Source:** https://github.com/Owner/RepoName/path/to/IPC.cs
+```
+
+Or if unverified (from screenshots/testing):
+```markdown
+> **Source Status:** Unverified - documented from screenshots and testing. Official repo: https://github.com/Owner/RepoName
+```
+
+This allows us to:
+- Easily find the official source for updates
+- Verify documentation accuracy
+- Track which skills need official verification
+
 ---
 
 ## Skills Documentation
@@ -114,11 +148,17 @@ Detailed documentation is organized into modular skills in `.claude/skills/`:
 | **snd-vnavmesh** | Navigation and movement using vnavmesh plugin |
 | **snd-lifestream** | Teleportation, world travel, instance management using Lifestream plugin |
 | **snd-artisan** | Crafting automation using Artisan plugin |
-| **snd-saucy** | Fishing automation using Saucy plugin |
+| **snd-saucy** | Gold Saucer mini-game automation (Cuff-a-cur, Triple Triad) - NO IPC API |
 | **snd-autoretainer** | Retainer management using AutoRetainer plugin |
 | **snd-combat** | Combat/rotation plugin integration (BossMod, RSR, Wrath) |
+| **snd-wrath** | WrathCombo IPC for auto-rotation, combo states, job config, leasing |
+| **snd-bossmod** | BossModReborn IPC for AI movement and combat control |
 | **snd-textadvance** | Automatic dialog/cutscene advancement using TextAdvance plugin |
 | **snd-questionable** | Quest automation using Questionable plugin |
+| **snd-glamourer** | Glamour/appearance automation using Glamourer plugin |
+| **snd-yesalready** | Auto-confirm dialogs, number entry, list selection using YesAlready plugin |
+| **snd-inventory** | Inventory management, item counts, container operations |
+| **snd-deliveroo** | Grand Company delivery automation, expert delivery, seals management |
 
 ### Content Automation
 | Skill | Description |
@@ -131,6 +171,7 @@ Detailed documentation is organized into modular skills in `.claude/skills/`:
 |-------|-------------|
 | **audit** | Codebase audit procedures for consistency, bugs, and documentation |
 | **chattwo-debug** | Reading ChatTwo chat logs as a debug console for bug analysis |
+| **screenshots** | Reading ShareX screenshots for visual game information and UI state |
 
 ---
 
@@ -237,9 +278,8 @@ IPC.Artisan.StopList()
 
 **Saucy** (see `snd-saucy` skill):
 ```lua
-IPC.Saucy.IsRunning()
-IPC.Saucy.StartFishing()
-IPC.Saucy.StopFishing()
+-- Saucy has NO IPC API - Gold Saucer mini-games only, manual control
+yield("/saucy")  -- Opens Saucy UI (manual configuration only)
 ```
 
 **AutoRetainer** (see `snd-autoretainer` skill):
@@ -283,6 +323,10 @@ yield("/at qa on")  -- Enable auto-accept quests
 
 ---
 
+To run remotely, use `script -c "tmux attach -t snd" /dev/null` |
+
+---
+
 ## Skill Locations
 
 For complete documentation, see the individual skill files:
@@ -291,16 +335,23 @@ For complete documentation, see the individual skill files:
 .claude/skills/
 ├── snd-core/SKILL.md         # Core patterns, conditions, utilities
 ├── snd-addons/SKILL.md       # UI addons, node access, dialogs
+├── snd-inventory/SKILL.md    # Inventory management, item counts
 ├── snd-vnavmesh/SKILL.md     # Navigation
 ├── snd-lifestream/SKILL.md   # Teleportation
 ├── snd-artisan/SKILL.md      # Crafting
 ├── snd-saucy/SKILL.md        # Fishing
 ├── snd-autoretainer/SKILL.md # Retainers
 ├── snd-combat/SKILL.md       # Combat plugins
+├── snd-wrath/SKILL.md        # WrathCombo IPC (official)
+├── snd-bossmod/SKILL.md      # BossModReborn IPC
 ├── snd-textadvance/SKILL.md  # Dialog automation
+├── snd-yesalready/SKILL.md   # Auto-confirm dialogs
+├── snd-glamourer/SKILL.md    # Glamour/appearance
+├── snd-deliveroo/SKILL.md    # GC delivery automation
 ├── snd-fates/SKILL.md        # FATE farming
 ├── snd-ice/SKILL.md          # Cosmic Exploration (Ice plugin)
 ├── snd-questionable/SKILL.md # Quest automation (Questionable plugin)
 ├── audit/SKILL.md            # Codebase audit procedures
-└── chattwo-debug/SKILL.md    # ChatTwo debug console
+├── chattwo-debug/SKILL.md    # ChatTwo debug console
+└── screenshots/SKILL.md      # ShareX screenshots for visual info
 ```

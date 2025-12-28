@@ -1,9 +1,11 @@
 ---
 name: SND Questionable
-description: Use this skill when implementing quest automation in SND macros using the Questionable plugin. Covers quest status checking, quest priority management, and integration with leveling workflows.
+description: Use this skill when implementing quest automation in SND macros using the Questionable plugin. Covers command usage and integration with leveling workflows.
 ---
 
 # Questionable Plugin (Quest Automation)
+
+> **Source:** https://github.com/pot0to/Questionable (Verified - No IPC APIs found)
 
 Questionable is a small quest helper plugin designed to automatically do your quests where possible.
 It utilizes navmesh to automatically travel to all quest waypoints and attempts to complete all steps
@@ -41,117 +43,86 @@ yield("/qst stop")
 
 ## IPC Methods
 
-Access via `IPC.Questionable.*` in SND:
+**IMPORTANT: Questionable does NOT expose any IPC methods for external use.**
 
-### Status Checks
+After verifying the official source code at https://github.com/pot0to/Questionable, the plugin does not provide an IPC provider. This means there are **no programmatic APIs** available to check quest status, control the plugin, or query quest information from SND macros.
 
-```lua
--- Check if Questionable is currently running
-local isRunning = IPC.Questionable.IsRunning()
+## Integration with SND Macros
 
--- Get current quest ID being worked on
-local questId = IPC.Questionable.GetCurrentQuestId()
+Since Questionable has no IPC, you can only interact with it via:
 
--- Get data about the current step
-local stepData = IPC.Questionable.GetCurrentStepData()
-```
+1. **Chat Commands** - Use `yield("/qst ...")` commands
+2. **Manual Coordination** - Structure your macro to work alongside Questionable
 
-### Quest State Checks
+### Example: Starting Questionable
 
 ```lua
--- Check if a quest is completed
-local isDone = IPC.Questionable.IsQuestComplete("questId")
-
--- Check if a quest is accepted (in journal)
-local isAccepted = IPC.Questionable.IsQuestAccepted("questId")
-
--- Check if ready to accept a quest
-local canAccept = IPC.Questionable.IsReadyToAcceptQuest("questId")
-
--- Check if a quest is locked (requirements not met)
-local isLocked = IPC.Questionable.IsQuestLocked("questId")
-
--- Check if a quest is unobtainable
-local isUnobtainable = IPC.Questionable.IsQuestUnobtainable("questId")
-```
-
-### Quest Priority Management
-
-```lua
--- Add a quest to priority list
-IPC.Questionable.AddQuestPriority("questId")
-
--- Insert quest at specific position in priority list
-IPC.Questionable.InsertQuestPriority(1, "questId")  -- position, questId
-
--- Clear all quest priorities
-IPC.Questionable.ClearQuestPriority()
-
--- Export quest priority as string
-local priorityData = IPC.Questionable.ExportQuestPriority()
-
--- Import quest priority from string
-IPC.Questionable.ImportQuestPriority(priorityData)
-```
-
-## Example: Check if Quest is Done
-
-```lua
-local function IsQuestDone(questId)
+-- Start Questionable from your macro
+function StartQuestionable()
     if not HasPlugin("Questionable") then
-        return nil  -- Can't check without plugin
+        yield("/echo [Error] Questionable plugin not found!")
+        return false
     end
-    return IPC.Questionable.IsQuestComplete(questId)
-end
 
--- Usage
-if IsQuestDone("inscrutable-tastes-quest-id") then
-    yield("/echo Quest already completed!")
-else
-    yield("/echo Quest not done yet - please complete it!")
-end
-```
-
-## Example: Wait for Questionable to Finish
-
-```lua
-local function WaitForQuestionable(maxWaitSeconds)
-    maxWaitSeconds = maxWaitSeconds or 300  -- 5 min default
-    local startTime = os.clock()
-
-    while IPC.Questionable.IsRunning() do
-        if os.clock() - startTime > maxWaitSeconds then
-            yield("/echo Timeout waiting for Questionable")
-            return false
-        end
-        yield("/wait 1")
-    end
+    yield("/qst start")
+    yield("/echo Started Questionable - please monitor manually")
     return true
 end
 ```
 
-## Known Quest IDs
+### Example: Working Alongside Questionable
 
-| Quest Name | Quest ID | Notes |
-|------------|----------|-------|
-| Inscrutable Tastes | 67631 | Required at level 50 for collectables |
+Since you can't check if Questionable is running programmatically, structure your macro to assume Questionable will handle quests:
+
+```lua
+-- Your leveling macro
+function LevelingLoop()
+    while Player.Level < MAX_LEVEL do
+        -- Do your automation tasks
+        CheckRetainers()
+        CheckGrandCompany()
+
+        -- Tell user to start Questionable manually
+        yield("/echo Please start Questionable (/qst start) to continue leveling")
+        yield("/echo Press any key when quests are done...")
+
+        -- Wait for user input or time-based check
+        yield("/wait 300")  -- Wait 5 minutes, adjust as needed
+    end
+end
+```
 
 ## Notes
 
-- Quest IDs are strings (e.g., "67631"), not numbers
-- Always check `HasPlugin("Questionable")` before using IPC methods
-- Priority system allows you to queue up quests to complete in order
+- **No IPC Available** - Cannot check quest status, running state, or control programmatically
+- **Command-Only Control** - Use `/qst` commands only
+- **Manual Coordination Required** - Your macros cannot automatically detect when Questionable finishes
 - Does NOT handle: dungeons, single-player duties, combat
 - Requires: vnavmesh, TextAdvance, Lifestream plugins
 
-## IMPORTANT: IPC Limitations
+## Workaround: Time-Based Assumptions
 
-**The Questionable IPC does NOT check the game's actual quest completion status!**
+Since you can't query Questionable's state, you may need to use time-based waits:
 
-The `IsQuestComplete()`, `IsQuestLocked()`, etc. methods check Questionable's **internal tracking**, not the game's quest journal. For example:
-- A quest you completed manually in-game may show `IsQuestComplete() = false`
-- A quest may show `IsQuestLocked() = true` even if you've done it
+```lua
+-- Start Questionable and wait a fixed time
+yield("/qst start")
+yield("/echo Waiting for quests (assuming 15 minutes)...")
+yield("/wait 900")  -- Wait 15 minutes
+yield("/qst stop")
+```
 
-This means you **cannot use Questionable IPC to reliably check if a player has completed a quest in the game**. It only tracks quests that Questionable itself has processed.
+Or use level checks as a proxy:
 
-If you need to check actual game quest completion, there is currently no reliable way to do this from SND - the game's QuestManager is not exposed via `Svc`.
+```lua
+-- Keep running Questionable until level target reached
+local startLevel = Svc.ClientState.LocalPlayer.Level
+yield("/qst start")
+
+while Svc.ClientState.LocalPlayer.Level < TARGET_LEVEL do
+    yield("/wait 60")  -- Check every minute
+end
+
+yield("/qst stop")
+yield("/echo Reached target level!")
+```
