@@ -148,6 +148,7 @@ Detailed documentation is organized into modular skills in `.claude/skills/`:
 | **snd-vnavmesh** | Navigation and movement using vnavmesh plugin |
 | **snd-lifestream** | Teleportation, world travel, instance management using Lifestream plugin |
 | **snd-artisan** | Crafting automation using Artisan plugin |
+| **snd-stylist** | Automatic gear management and upgrades using Stylist plugin |
 | **snd-saucy** | Gold Saucer mini-game automation (Cuff-a-cur, Triple Triad) - NO IPC API |
 | **snd-autoretainer** | Retainer management using AutoRetainer plugin |
 | **snd-combat** | Combat/rotation plugin integration (BossMod, RSR, Wrath) |
@@ -276,6 +277,14 @@ IPC.Artisan.CraftItem(recipeId, quantity)
 IPC.Artisan.StopList()
 ```
 
+**Stylist** (see `snd-stylist` skill):
+```lua
+yield("/stylist crafter")   -- Update all crafter gearsets
+yield("/stylist gatherer")  -- Update all gatherer gearsets
+yield("/stylist all")       -- Update all gearsets
+-- Note: /stylist alone only opens UI, does NOT update gear
+```
+
 **Saucy** (see `snd-saucy` skill):
 ```lua
 -- Saucy has NO IPC API - Gold Saucer mini-games only, manual control
@@ -339,6 +348,7 @@ For complete documentation, see the individual skill files:
 ├── snd-vnavmesh/SKILL.md     # Navigation
 ├── snd-lifestream/SKILL.md   # Teleportation
 ├── snd-artisan/SKILL.md      # Crafting
+├── snd-stylist/SKILL.md      # Gear management and upgrades
 ├── snd-saucy/SKILL.md        # Fishing
 ├── snd-autoretainer/SKILL.md # Retainers
 ├── snd-combat/SKILL.md       # Combat plugins
