@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Vaoan'
-version: 2.14.1
+version: 2.14.2
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters, gear updates at configurable levels
 plugin_dependencies:
 - ICE
@@ -75,7 +75,7 @@ configs:
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.14.1
+                                  Version 2.14.2
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -223,13 +223,26 @@ REQUIREMENTS:
 
 SETUP:
 ------
-1. Install ICE plugin from: https://puni.sh/api/repository/ice
-   - In Dalamud Settings > Experimental > Custom Plugin Repositories
-   - Add the repo URL above
+1. Install ICE plugin:
+   - Open Dalamud Settings > Experimental > Custom Plugin Repositories
+   - Click the "+" button
+   - Add: https://puni.sh/api/repository/ice
+   - Click "Save"
+   - Open Plugin Installer and search for "ICE"
+   - Install the plugin
 
-2. Install and configure Stylist plugin:
+2. Install Stylist plugin:
+   - Open Dalamud Settings > Experimental > Custom Plugin Repositories
+   - Click the "+" button
+   - Add: https://github.com/NightmareXIV/MyDalamudPlugins/raw/main/pluginmaster.json
+   - Click "Save"
+   - Open Plugin Installer and search for "Stylist"
+   - Install the plugin
+
+3. Configure Stylist plugin:
    - Open Stylist UI: /stylist
-   - Enable these settings (Settings tab):
+   - Go to Settings tab
+   - Enable these settings:
      ✓ Consider gear from inventory
      ✓ Move replaced items from armory chest to regular inventory
      ✓ Re-equip current gearset if it was updated
@@ -239,13 +252,13 @@ SETUP:
    - Old gear is moved to regular inventory (keeps armory chest clean)
    - Your gearset is automatically re-equipped after upgrades
 
-3. Configure gearsets for all DoH/DoL jobs you want to level
+4. Configure gearsets for all DoH/DoL jobs you want to level
 
 ================================================================================
 ]]
 
 -- Script Version (keep in sync with metadata!)
-local SCRIPT_VERSION = "2.14.1"
+local SCRIPT_VERSION = "2.14.2"
 
 -- Job Categories
 -- Crafters (DoH - Disciples of Hand): IDs 8-15

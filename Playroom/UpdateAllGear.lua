@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Vaoan'
-version: 1.1.1
+version: 1.1.2
 description: Cycles through all Crafters and Gatherers and updates their gear with recommended equipment
 plugin_dependencies:
 - Stylist
@@ -9,12 +9,12 @@ plugin_dependencies:
 --]=====]
 
 -- Script Version (keep in sync with metadata!)
-local SCRIPT_VERSION = "1.1.1"
+local SCRIPT_VERSION = "1.1.2"
 
 --[[
 ================================================================================
                             UPDATE ALL GEAR
-                              Version 1.1.1
+                              Version 1.1.2
 ================================================================================
 
 Simple utility script that cycles through all Crafter (DoH) and Gatherer (DoL)
@@ -34,9 +34,18 @@ REQUIREMENTS:
 
 SETUP:
 ------
-1. Install and configure Stylist plugin:
+1. Install Stylist plugin:
+   - Open Dalamud Settings > Experimental > Custom Plugin Repositories
+   - Click the "+" button
+   - Add: https://github.com/NightmareXIV/MyDalamudPlugins/raw/main/pluginmaster.json
+   - Click "Save"
+   - Open Plugin Installer and search for "Stylist"
+   - Install the plugin
+
+2. Configure Stylist plugin:
    - Open Stylist UI: /stylist
-   - Enable these settings (Settings tab):
+   - Go to Settings tab
+   - Enable these settings:
      ✓ Consider gear from inventory
      ✓ Move replaced items from armory chest to regular inventory
      ✓ Re-equip current gearset if it was updated
@@ -46,7 +55,7 @@ SETUP:
    - Old gear is moved to regular inventory (keeps armory chest clean)
    - Your gearset is automatically re-equipped after upgrades
 
-2. Configure gearsets for all DoH/DoL jobs you want to update
+3. Configure gearsets for all DoH/DoL jobs you want to update
 
 ================================================================================
 ]]
