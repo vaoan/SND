@@ -1,6 +1,6 @@
 --[=====[
 [[SND Metadata]]
-author: 'Developer'
+author: 'Vaoan'
 version: 1.8.3
 description: Teleportation and navigation script with flight detection and walking fallback
 plugin_dependencies:

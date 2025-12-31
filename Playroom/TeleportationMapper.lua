@@ -1,6 +1,6 @@
 --[=====[
 [[SND Metadata]]
-author: 'Developer'
+author: 'Vaoan'
 version: 1.4.1
 description: Enhanced teleportation mapping script with comprehensive zone loading and character state validation
 plugin_dependencies:

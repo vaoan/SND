@@ -1,6 +1,6 @@
 --[=====[
 [[SND Metadata]]
-author: 'Heiner'
+author: 'Vaoan'
 version: 2.13.4
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters, gear updates at configurable levels
 plugin_dependencies:
