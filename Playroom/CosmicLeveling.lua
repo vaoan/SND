@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Vaoan'
-version: 2.14.0
+version: 2.14.1
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters, gear updates at configurable levels
 plugin_dependencies:
 - ICE
@@ -75,7 +75,7 @@ configs:
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.14.0
+                                  Version 2.14.1
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -245,7 +245,7 @@ SETUP:
 ]]
 
 -- Script Version (keep in sync with metadata!)
-local SCRIPT_VERSION = "2.14.0"
+local SCRIPT_VERSION = "2.14.1"
 
 -- Job Categories
 -- Crafters (DoH - Disciples of Hand): IDs 8-15
@@ -736,8 +736,10 @@ local function SwitchToJob(jobId, restartIce)
             end
 
             -- Equip recommended gear using Stylist
+            -- Determine role based on job ID (8-15 = Crafters, 16-18 = Gatherers)
+            local stylistCmd = (job.id >= 8 and job.id <= 15) and "/stylist crafter" or "/stylist gatherer"
             yield("/echo [CosmicLeveling] Equipping recommended gear...")
-            yield("/stylist")
+            yield(stylistCmd)
             yield("/wait 2")
 
             -- Restart Ice if requested (returns true if custom macro was run)
@@ -1012,15 +1014,17 @@ end
 
 -- If result is "continue", we stay on current job
 if result == "continue" then
+    -- Determine stylist command based on current job
+    local stylistCmd = IsCrafter(currentJobId) and "/stylist crafter" or "/stylist gatherer"
     -- Update gear if AlwaysUpdateGear is enabled
     if ALWAYS_UPDATE_GEAR then
         yield("/echo [CosmicLeveling] Updating equipment (AlwaysUpdateGear enabled)...")
-        yield("/stylist")
+        yield(stylistCmd)
         yield("/wait 2")
     -- Or update gear if at a gear update breakpoint level
     elseif IsAtGearUpdateBreakpoint(currentLevel) then
         yield("/echo [CosmicLeveling] Updating equipment (at gear breakpoint level " .. currentLevel .. ")...")
-        yield("/stylist")
+        yield(stylistCmd)
         yield("/wait 2")
     end
     local ranCustomMacro = StartIce()
@@ -1034,8 +1038,10 @@ end
 
 -- If result is "compliant", all jobs at breakpoint - update equipment and continue
 if result == "compliant" then
+    -- Determine stylist command based on current job
+    local stylistCmd = IsCrafter(currentJobId) and "/stylist crafter" or "/stylist gatherer"
     yield("/echo [CosmicLeveling] All jobs compliant - updating equipment...")
-    yield("/stylist")
+    yield(stylistCmd)
     yield("/wait 2")
     local ranCustomMacro = StartIce()
     if ranCustomMacro then

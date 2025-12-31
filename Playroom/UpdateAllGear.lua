@@ -1,7 +1,7 @@
 --[=====[
 [[SND Metadata]]
 author: 'Vaoan'
-version: 1.1.0
+version: 1.1.1
 description: Cycles through all Crafters and Gatherers and updates their gear with recommended equipment
 plugin_dependencies:
 - Stylist
@@ -9,12 +9,12 @@ plugin_dependencies:
 --]=====]
 
 -- Script Version (keep in sync with metadata!)
-local SCRIPT_VERSION = "1.1.0"
+local SCRIPT_VERSION = "1.1.1"
 
 --[[
 ================================================================================
                             UPDATE ALL GEAR
-                              Version 1.1.0
+                              Version 1.1.1
 ================================================================================
 
 Simple utility script that cycles through all Crafter (DoH) and Gatherer (DoL)
@@ -134,8 +134,10 @@ local function UpdateJobGear(job)
             local lp = Svc.ClientState.LocalPlayer
             if lp and lp.ClassJob.RowId == job.id then
                 -- Success! Update gear
+                -- Determine stylist command based on job ID (8-15 = Crafter, 16-18 = Gatherer)
+                local stylistCmd = (job.id >= 8 and job.id <= 15) and "/stylist crafter" or "/stylist gatherer"
                 yield("/echo [UpdateAllGear] Updating gear for " .. job.abbr .. "...")
-                yield("/stylist")
+                yield(stylistCmd)
                 yield("/wait 2")
                 return true
             else
