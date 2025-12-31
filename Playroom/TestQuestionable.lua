@@ -1,6 +1,6 @@
 --[=====[
 [[SND Metadata]]
-author: 'Heiner'
+author: 'Vaoan'
 version: 1.0.0
 description: Test script to check Questionable IPC and quest status
 [[End Metadata]]

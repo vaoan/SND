@@ -1,6 +1,6 @@
 --[=====[
 [[SND Metadata]]
-author: 'Heiner'
+author: 'Vaoan'
 version: 2.0.0
 description: Displays all job/class levels for the current character
 [[End Metadata]]

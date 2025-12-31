@@ -1,6 +1,6 @@
 --[=====[
 [[SND Metadata]]
-author: 'vaoan'
+author: 'Vaoan'
 version: 1.0.0
 description: Test vnavmesh navigation from Arcanist's Guild to Ocean Fishing NPC
 plugin_dependencies:

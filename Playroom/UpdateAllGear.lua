@@ -1,6 +1,6 @@
 --[=====[
 [[SND Metadata]]
-author: 'Heiner'
+author: 'Vaoan'
 version: 1.0.1
 description: Cycles through all Crafters and Gatherers and updates their gear with recommended equipment
 plugin_dependencies:
