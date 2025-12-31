@@ -1,20 +1,20 @@
 --[=====[
 [[SND Metadata]]
 author: 'Vaoan'
-version: 1.0.1
+version: 1.1.0
 description: Cycles through all Crafters and Gatherers and updates their gear with recommended equipment
 plugin_dependencies:
-- AutoDuty
+- Stylist
 [[End Metadata]]
 --]=====]
 
 -- Script Version (keep in sync with metadata!)
-local SCRIPT_VERSION = "1.0.1"
+local SCRIPT_VERSION = "1.1.0"
 
 --[[
 ================================================================================
                             UPDATE ALL GEAR
-                              Version 1.0.1
+                              Version 1.1.0
 ================================================================================
 
 Simple utility script that cycles through all Crafter (DoH) and Gatherer (DoL)
@@ -23,13 +23,30 @@ jobs and equips recommended gear for each one.
 HOW IT WORKS:
 -------------
 1. Loops through all 8 Crafters and 3 Gatherers
-2. For each job, switches gearset and runs /ad equiprec
+2. For each job, switches gearset and runs Stylist to update gear
 3. Returns to the original job when done
 
 REQUIREMENTS:
 -------------
-- AutoDuty plugin (for /ad equiprec - equip recommended gear)
+- Stylist plugin (for automatic gear upgrades)
+  Repo: https://github.com/NightmareXIV/MyDalamudPlugins/raw/main/pluginmaster.json
 - Gearsets configured for all DoH/DoL jobs
+
+SETUP:
+------
+1. Install and configure Stylist plugin:
+   - Open Stylist UI: /stylist
+   - Enable these settings (Settings tab):
+     ✓ Consider gear from inventory
+     ✓ Move replaced items from armory chest to regular inventory
+     ✓ Re-equip current gearset if it was updated
+
+   These settings ensure:
+   - Stylist checks your inventory for better gear
+   - Old gear is moved to regular inventory (keeps armory chest clean)
+   - Your gearset is automatically re-equipped after upgrades
+
+2. Configure gearsets for all DoH/DoL jobs you want to update
 
 ================================================================================
 ]]
@@ -118,7 +135,7 @@ local function UpdateJobGear(job)
             if lp and lp.ClassJob.RowId == job.id then
                 -- Success! Update gear
                 yield("/echo [UpdateAllGear] Updating gear for " .. job.abbr .. "...")
-                yield("/ad equiprec")
+                yield("/stylist")
                 yield("/wait 2")
                 return true
             else

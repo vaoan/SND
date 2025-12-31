@@ -1,11 +1,11 @@
 --[=====[
 [[SND Metadata]]
 author: 'Vaoan'
-version: 2.13.4
+version: 2.14.0
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters, gear updates at configurable levels
 plugin_dependencies:
-- AutoDuty
 - ICE
+- Stylist
 configs:
   Debug:
     description: Show detailed debug information (true/false)
@@ -75,7 +75,7 @@ configs:
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.13.4
+                                  Version 2.14.0
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -105,7 +105,7 @@ HOW IT WORKS:
 
 5. When all jobs are compliant (at breakpoint level):
    - Stays on current job
-   - Updates equipment via /ad equiprec (to keep gear current as you level)
+   - Updates equipment via Stylist (to keep gear current as you level)
    - Restarts Ice to continue leveling
 
 6. When continuing to level (no job switch needed):
@@ -137,7 +137,7 @@ Set to a lower value (e.g., 90) if you want to stop leveling earlier.
 
 EQUIPMENT UPDATES:
 ------------------
-Equipment is automatically updated (/ad equiprec) in these scenarios:
+Equipment is automatically updated (via Stylist) in these scenarios:
 1. When switching to a different job
 2. When all jobs are compliant at a breakpoint (staying on current job)
 3. When reaching a gear update breakpoint level (configurable via GearUpdateBreakpoints)
@@ -216,14 +216,36 @@ The script handles various blocking conditions:
 REQUIREMENTS:
 -------------
 - ICE plugin (for Cosmic Exploration automation)
-- AutoDuty plugin (for /ad equiprec - equip recommended gear)
+  Repo: https://puni.sh/api/repository/ice
+- Stylist plugin (for automatic gear upgrades)
+  Repo: https://github.com/NightmareXIV/MyDalamudPlugins/raw/main/pluginmaster.json
 - Gearsets configured for all DoH/DoL jobs
+
+SETUP:
+------
+1. Install ICE plugin from: https://puni.sh/api/repository/ice
+   - In Dalamud Settings > Experimental > Custom Plugin Repositories
+   - Add the repo URL above
+
+2. Install and configure Stylist plugin:
+   - Open Stylist UI: /stylist
+   - Enable these settings (Settings tab):
+     ✓ Consider gear from inventory
+     ✓ Move replaced items from armory chest to regular inventory
+     ✓ Re-equip current gearset if it was updated
+
+   These settings ensure:
+   - Stylist checks your inventory for better gear
+   - Old gear is moved to regular inventory (keeps armory chest clean)
+   - Your gearset is automatically re-equipped after upgrades
+
+3. Configure gearsets for all DoH/DoL jobs you want to level
 
 ================================================================================
 ]]
 
 -- Script Version (keep in sync with metadata!)
-local SCRIPT_VERSION = "2.13.4"
+local SCRIPT_VERSION = "2.14.0"
 
 -- Job Categories
 -- Crafters (DoH - Disciples of Hand): IDs 8-15
@@ -713,9 +735,9 @@ local function SwitchToJob(jobId, restartIce)
                 return false
             end
 
-            -- Equip recommended gear using AutoDuty
+            -- Equip recommended gear using Stylist
             yield("/echo [CosmicLeveling] Equipping recommended gear...")
-            yield("/ad equiprec")
+            yield("/stylist")
             yield("/wait 2")
 
             -- Restart Ice if requested (returns true if custom macro was run)
@@ -993,12 +1015,12 @@ if result == "continue" then
     -- Update gear if AlwaysUpdateGear is enabled
     if ALWAYS_UPDATE_GEAR then
         yield("/echo [CosmicLeveling] Updating equipment (AlwaysUpdateGear enabled)...")
-        yield("/ad equiprec")
+        yield("/stylist")
         yield("/wait 2")
     -- Or update gear if at a gear update breakpoint level
     elseif IsAtGearUpdateBreakpoint(currentLevel) then
         yield("/echo [CosmicLeveling] Updating equipment (at gear breakpoint level " .. currentLevel .. ")...")
-        yield("/ad equiprec")
+        yield("/stylist")
         yield("/wait 2")
     end
     local ranCustomMacro = StartIce()
@@ -1013,7 +1035,7 @@ end
 -- If result is "compliant", all jobs at breakpoint - update equipment and continue
 if result == "compliant" then
     yield("/echo [CosmicLeveling] All jobs compliant - updating equipment...")
-    yield("/ad equiprec")
+    yield("/stylist")
     yield("/wait 2")
     local ranCustomMacro = StartIce()
     if ranCustomMacro then
