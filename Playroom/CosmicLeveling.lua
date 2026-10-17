@@ -1,11 +1,11 @@
 --[=====[
 [[SND Metadata]]
 author: 'Vaoan'
-version: 2.14.2
+version: 2.15.0
 description: Auto-leveling for Cosmic Exploration - switches jobs at breakpoints, auto-switches categories, persists completed characters, gear updates at configurable levels
 plugin_dependencies:
 - ICE
-- Stylist
+- AutoDuty
 configs:
   Debug:
     description: Show detailed debug information (true/false)
@@ -75,7 +75,7 @@ configs:
 --[[
 ================================================================================
                         COSMIC EXPLORATION AUTO-LEVELING
-                                  Version 2.14.2
+                                  Version 2.15.0
 ================================================================================
 
 This script automates job leveling rotation for Cosmic Exploration (Ice plugin).
@@ -100,12 +100,12 @@ HOW IT WORKS:
 4. When switching jobs:
    - Stops Ice (multiple times to ensure it registers)
    - Waits for any ongoing craft or duty (Mech Ops, etc.) to complete
-   - Switches gearset and equips recommended gear
+   - Switches gearset and equips recommended gear via AutoDuty
    - Restarts Ice
 
 5. When all jobs are compliant (at breakpoint level):
    - Stays on current job
-   - Updates equipment via Stylist (to keep gear current as you level)
+   - Updates equipment via AutoDuty (to keep gear current as you level)
    - Restarts Ice to continue leveling
 
 6. When continuing to level (no job switch needed):
@@ -137,7 +137,7 @@ Set to a lower value (e.g., 90) if you want to stop leveling earlier.
 
 EQUIPMENT UPDATES:
 ------------------
-Equipment is automatically updated (via Stylist) in these scenarios:
+Equipment is automatically updated (via AutoDuty /ad equiprec) in these scenarios:
 1. When switching to a different job
 2. When all jobs are compliant at a breakpoint (staying on current job)
 3. When reaching a gear update breakpoint level (configurable via GearUpdateBreakpoints)
@@ -217,8 +217,8 @@ REQUIREMENTS:
 -------------
 - ICE plugin (for Cosmic Exploration automation)
   Repo: https://puni.sh/api/repository/ice
-- Stylist plugin (for automatic gear upgrades)
-  Repo: https://github.com/NightmareXIV/MyDalamudPlugins/raw/main/pluginmaster.json
+- AutoDuty plugin (for automatic gear upgrades via /ad equiprec)
+  Repo: https://puni.sh/api/repository/herc
 - Gearsets configured for all DoH/DoL jobs
 
 SETUP:
@@ -231,34 +231,21 @@ SETUP:
    - Open Plugin Installer and search for "ICE"
    - Install the plugin
 
-2. Install Stylist plugin:
+2. Install AutoDuty plugin:
    - Open Dalamud Settings > Experimental > Custom Plugin Repositories
    - Click the "+" button
-   - Add: https://github.com/NightmareXIV/MyDalamudPlugins/raw/main/pluginmaster.json
+   - Add: https://puni.sh/api/repository/herc
    - Click "Save"
-   - Open Plugin Installer and search for "Stylist"
+   - Open Plugin Installer and search for "AutoDuty"
    - Install the plugin
 
-3. Configure Stylist plugin:
-   - Open Stylist UI: /stylist
-   - Go to Settings tab
-   - Enable these settings:
-     ✓ Consider gear from inventory
-     ✓ Move replaced items from armory chest to regular inventory
-     ✓ Re-equip current gearset if it was updated
-
-   These settings ensure:
-   - Stylist checks your inventory for better gear
-   - Old gear is moved to regular inventory (keeps armory chest clean)
-   - Your gearset is automatically re-equipped after upgrades
-
-4. Configure gearsets for all DoH/DoL jobs you want to level
+3. Configure gearsets for all DoH/DoL jobs you want to level
 
 ================================================================================
 ]]
 
 -- Script Version (keep in sync with metadata!)
-local SCRIPT_VERSION = "2.14.2"
+local SCRIPT_VERSION = "2.15.0"
 
 -- Job Categories
 -- Crafters (DoH - Disciples of Hand): IDs 8-15
@@ -748,11 +735,9 @@ local function SwitchToJob(jobId, restartIce)
                 return false
             end
 
-            -- Equip recommended gear using Stylist
-            -- Determine role based on job ID (8-15 = Crafters, 16-18 = Gatherers)
-            local stylistCmd = (job.id >= 8 and job.id <= 15) and "/stylist crafter" or "/stylist gatherer"
+            -- Equip recommended gear using AutoDuty
             yield("/echo [CosmicLeveling] Equipping recommended gear...")
-            yield(stylistCmd)
+            yield("/ad equiprec")
             yield("/wait 2")
 
             -- Restart Ice if requested (returns true if custom macro was run)
@@ -1027,17 +1012,15 @@ end
 
 -- If result is "continue", we stay on current job
 if result == "continue" then
-    -- Determine stylist command based on current job
-    local stylistCmd = IsCrafter(currentJobId) and "/stylist crafter" or "/stylist gatherer"
     -- Update gear if AlwaysUpdateGear is enabled
     if ALWAYS_UPDATE_GEAR then
         yield("/echo [CosmicLeveling] Updating equipment (AlwaysUpdateGear enabled)...")
-        yield(stylistCmd)
+        yield("/ad equiprec")
         yield("/wait 2")
     -- Or update gear if at a gear update breakpoint level
     elseif IsAtGearUpdateBreakpoint(currentLevel) then
         yield("/echo [CosmicLeveling] Updating equipment (at gear breakpoint level " .. currentLevel .. ")...")
-        yield(stylistCmd)
+        yield("/ad equiprec")
         yield("/wait 2")
     end
     local ranCustomMacro = StartIce()
@@ -1051,10 +1034,8 @@ end
 
 -- If result is "compliant", all jobs at breakpoint - update equipment and continue
 if result == "compliant" then
-    -- Determine stylist command based on current job
-    local stylistCmd = IsCrafter(currentJobId) and "/stylist crafter" or "/stylist gatherer"
     yield("/echo [CosmicLeveling] All jobs compliant - updating equipment...")
-    yield(stylistCmd)
+    yield("/ad equiprec")
     yield("/wait 2")
     local ranCustomMacro = StartIce()
     if ranCustomMacro then
